@@ -29,6 +29,10 @@ class Course(Base):
     acad_career = Column(String(255))
     acad_group = Column(String(255))
     
+    # 追踪字段：记录课程最后开设的学期
+    last_offered_semester = Column(String(10), nullable=True)
+    last_offered_year = Column(Integer, nullable=True, index=True)
+    
     # 关系：一对多 → CourseAttribute
     attributes = relationship(
         "CourseAttribute",
@@ -56,14 +60,14 @@ class Course(Base):
         self.number = data["catalogNbr"]
         self.title_short = data["titleShort"]
         self.title_long = data["titleLong"]
-        self.description = data.get("description", "")  # 有些课程可能没有描述
-        self.enrollment_priority = data.get("catalogEnrollmentPriority", "")
-        self.forbidden_overlaps = data.get("catalogForbiddenOverlaps", "")
-        self.prereq = data.get("catalogPrereq", "")
-        self.coreq = data.get("catalogCoreq", "")
-        self.fee = data.get("catalogFee", "")
-        self.acad_career = data.get("acadCareer", "")
-        self.acad_group = data.get("acadGroup", "")
+        self.description = data.get("description") or None
+        self.enrollment_priority = data.get("catalogEnrollmentPriority") or None
+        self.forbidden_overlaps = data.get("catalogForbiddenOverlaps") or None
+        self.prereq = data.get("catalogPrereq") or None
+        self.coreq = data.get("catalogCoreq") or None
+        self.fee = data.get("catalogFee") or None
+        self.acad_career = data.get("acadCareer") or None
+        self.acad_group = data.get("acadGroup") or None
         
         # 计算课程级别（从 catalogNbr 第一位提取）
         try:
@@ -94,6 +98,55 @@ class Course(Base):
         # 注意：enroll_groups 不在此处创建
         # 现在由 CourseService 负责创建和匹配 EnrollGroups
         self.enroll_groups = []
+    
+    def update_from_data(self, data):
+        """
+        从 API 数据更新 Course 字段（覆盖所有元数据）
+        
+        注意：不更新 last_offered_semester/year，这些由调用方根据导入逻辑处理
+        
+        Args:
+            data: 从 Cornell API 获取的课程数据字典
+        """
+        # 更新基本字段
+        self.subject = data["subject"]
+        self.number = data["catalogNbr"]
+        self.title_short = data["titleShort"]
+        self.title_long = data["titleLong"]
+        self.description = data.get("description") or None
+        self.enrollment_priority = data.get("catalogEnrollmentPriority") or None
+        self.forbidden_overlaps = data.get("catalogForbiddenOverlaps") or None
+        self.prereq = data.get("catalogPrereq") or None
+        self.coreq = data.get("catalogCoreq") or None
+        self.fee = data.get("catalogFee") or None
+        self.acad_career = data.get("acadCareer") or None
+        self.acad_group = data.get("acadGroup") or None
+        
+        # 重新计算 level
+        try:
+            self.level = int(data["catalogNbr"][0])
+        except (ValueError, IndexError):
+            self.level = 0
+        
+        # 更新 attributes（删除重建策略）
+        self.attributes.clear()  # 触发 cascade delete-orphan，删除旧的 attributes
+        crse_attrs = data.get("crseAttrs", [])
+        if crse_attrs:
+            from .course_attribute import CourseAttribute
+            for attr in crse_attrs:
+                # 跳过没有 crseAttrValue 的记录（复合主键必需）
+                attr_value = attr.get("crseAttrValue", "").strip()
+                if not attr_value:
+                    continue
+                
+                # attrDescrShort 可以为空
+                attr_type = attr.get("attrDescrShort", "")
+                
+                course_attr = CourseAttribute(
+                    attribute_value=attr_value,
+                    attribute_type=attr_type if attr_type else None
+                )
+                self.attributes.append(course_attr)
     
     def __repr__(self):
         return f"<Course {self.id}: {self.title_short}>"

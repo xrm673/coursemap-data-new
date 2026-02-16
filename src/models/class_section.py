@@ -66,7 +66,7 @@ class ClassSection(Base):
         self.add_consent = data.get("addConsent")
         self.is_component_graded = data.get("isComponentGraded")
         self.instruction_mode = data.get("instructionMode")
-        self.section_topic = data.get("topicDescription")
+        self.section_topic = data.get("topicDescription") or None
         self.open_status = data.get("openStatus")
         
         # 解析日期字段

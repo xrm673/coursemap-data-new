@@ -46,10 +46,9 @@ def main():
     
     # 可以修改这里的参数来导入不同学期和学科的课程
     semester = "SP26"
-    subject = "MATH" 
+    subject = "INFO" 
     
-    success, fail = course_service.import_courses_from_api(semester, subject)
-    print()
+    stats = course_service.import_courses_from_api(semester, subject)
     
     # 关闭会话
     session.close()

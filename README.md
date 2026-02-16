@@ -75,7 +75,7 @@ python main.py
 Cornell Classes API:
 - URL: `https://classes.cornell.edu/api/2.0/search/classes.json`
 - 参数：
-  - `semester`: 学期代码（如 "SP26" = Spring 2026）
+  - `roster`: 学期代码（如 "SP26" = Spring 2026）
   - `subject`: 学科代码（如 "MATH"）
 
 ## 架构说明
@@ -107,6 +107,37 @@ Cornell Classes API:
 - ✅ 方便扩展新表和功能
 - ✅ ORM 自动处理 SQL 和类型转换
 
+## 新增功能 ✨
+
+### 学期追踪和历史学期导入
+
+系统现在支持：
+- ✅ 追踪每门课程和注册组的**最后开设学期**
+- ✅ 智能判断**历史学期**和**更新学期**
+- ✅ 历史学期导入**不覆盖**最新数据，只补充历史课表
+- ✅ 支持**乱序导入**（可先导入新学期，再补充旧学期）
+- ✅ 快速查询"**3年内开设的课程**"（用于前端筛选）
+
+详细说明请查看 [CHANGELOG.md](CHANGELOG.md)
+
+### 使用示例
+
+```python
+# 导入最新学期
+stats = course_service.import_courses_from_api("SP26", "MATH")
+
+# 补充历史学期（不会覆盖 SP26 的数据）
+stats = course_service.import_courses_from_api("FA25", "MATH")
+
+# 查询 3 年内的课程
+from models import Course
+recent = session.query(Course).filter(
+    Course.last_offered_year >= 2023
+).all()
+```
+
+更多示例见 [example_usage.py](example_usage.py)
+
 ## 自定义使用
 
 修改 `src/main.py` 中的参数来导入不同的课程：
@@ -127,8 +158,16 @@ Cornell Classes API:
 3. Repository 和 Service 会自动处理关联
 4. 现有代码无需大改
 
+## 测试
+
+运行测试验证学期工具函数：
+```bash
+python test_semester_utils.py
+```
+
 ## 注意事项
 
 - `.env` 文件包含敏感信息，已加入 `.gitignore`，不会提交到 Git
-- 首次运行会自动创建表结构
-- 重复运行会更新已存在的课程（使用 `merge` 操作）
+- 首次运行会自动创建表结构（包括新的 `last_offered_*` 字段）
+- 支持重复导入同一学期（幂等操作）
+- 历史学期导入不会覆盖最新数据，只补充历史课表信息

@@ -14,15 +14,14 @@ class EnrollGroupMatcher:
         
         判断规则（优先级递减）：
         1. 如果任何一个 section 有 topic → 用 topic 匹配
-        2. 如果有 type="IND" 的 section 且有 instructor → 用第一个 instructor 的 netid 匹配
-        3. 其他情况 → 用第一个 section 的 section_name 匹配
+        2. 其他情况 → 用第一个 section 的 section_name 匹配
         
         Args:
             eg_data: 从 Cornell API 获取的 enrollGroup 数据字典
             
         Returns:
             tuple: (matching_type, matching_key)
-                - matching_type: "topic", "instructor", "section_name"
+                - matching_type: "topic", "section_name"
                 - matching_key: 具体的匹配值
         """
         class_sections_data = eg_data.get("classSections", [])
@@ -37,23 +36,8 @@ class EnrollGroupMatcher:
             if topic:  # topic 不为空
                 return ("topic", topic)
         
-        # 规则 2：只检查第一个 section 是否是 IND
+        # 规则 2：使用第一个 section 的 section_name
         first_section = class_sections_data[0]
-        if first_section.get("ssrComponent") == "IND":
-            # 查找第一个 instructor 的 netid
-            meetings = first_section.get("meetings", [])
-            for meeting in meetings:
-                instructors = meeting.get("instructors", [])
-                if instructors:
-                    # 找到第一个 instructor
-                    first_instructor = instructors[0]
-                    netid = first_instructor.get("netid", "").strip()
-                    if netid:
-                        return ("instructor", netid)
-            
-            # IND section 但没有 instructor，降级到规则 3
-        
-        # 规则 3：使用第一个 section 的 section_name
         section_type = first_section.get("ssrComponent", "")
         section_number = first_section.get("section", "")
         section_name = section_type + section_number

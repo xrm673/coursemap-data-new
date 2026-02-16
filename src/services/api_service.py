@@ -24,7 +24,7 @@ class APIService:
             list: 课程数据列表，如果失败返回空列表
         """
         params = {
-            'semester': semester,
+            'roster': semester,
             'subject': subject
         }
         

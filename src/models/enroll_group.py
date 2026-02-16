@@ -28,6 +28,10 @@ class EnrollGroup(Base):
     grading_basis = Column(String(50))
     session_code = Column(String(10))
     
+    # 追踪字段：记录该 EnrollGroup 最后开设的学期
+    last_offered_semester = Column(String(10), nullable=True, index=True)
+    last_offered_year = Column(Integer, nullable=True, index=True)
+    
     # 时间戳
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
