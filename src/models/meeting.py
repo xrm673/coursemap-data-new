@@ -17,7 +17,7 @@ class Meeting(Base):
     
     # 外键：指向 class_sections 表（复合外键）
     class_section_class_nbr = Column(Integer, nullable=False)
-    class_section_roster = Column(String(10), nullable=False)
+    class_section_semester = Column(String(10), nullable=False)
     
     # Meeting 信息
     time_start = Column(String(10))  # "09:05AM"
@@ -43,8 +43,8 @@ class Meeting(Base):
     # 表级约束：复合外键（添加级联删除）
     __table_args__ = (
         ForeignKeyConstraint(
-            ['class_section_class_nbr', 'class_section_roster'],
-            ['class_sections.class_nbr', 'class_sections.roster'],
+            ['class_section_class_nbr', 'class_section_semester'],
+            ['class_sections.class_nbr', 'class_sections.semester'],
             name='fk_meeting_class_section',
             ondelete='CASCADE'  # 当 ClassSection 被删除时，自动删除相关的 Meetings
         ),

@@ -1,6 +1,6 @@
 """
 ClassSection 数据模型
-表示具体的课程 section（复合主键：classNbr + roster）
+表示具体的课程 section（复合主键：classNbr + semester）
 """
 from sqlalchemy import Column, String, Integer, ForeignKey, Date, Boolean, Text, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
@@ -12,9 +12,9 @@ class ClassSection(Base):
     """课程 Section 表"""
     __tablename__ = 'class_sections'
     
-    # 复合主键：classNbr + roster
+    # 复合主键：classNbr + semester
     class_nbr = Column(Integer, nullable=False)
-    roster = Column(String(10), nullable=False)
+    semester = Column(String(10), nullable=False)
     
     # 外键：指向 enroll_groups 表
     enroll_group_id = Column(Integer, ForeignKey('enroll_groups.id'), nullable=False, index=True)
@@ -45,18 +45,18 @@ class ClassSection(Base):
     
     # 表级约束
     __table_args__ = (
-        PrimaryKeyConstraint('class_nbr', 'roster', name='pk_class_section'),
+        PrimaryKeyConstraint('class_nbr', 'semester', name='pk_class_section'),
     )
     
-    def __init__(self, data, roster):
+    def __init__(self, data, semester):
         """
         从 API 数据初始化 ClassSection 对象
         
         Args:
             data: 从 Cornell API 获取的 classSection 数据字典
-            roster: 学期代码，如 "SP26"
+            semester: 学期代码，如 "SP26"
         """
-        self.roster = roster
+        self.semester = semester
         self.class_nbr = data.get("classNbr")
         self.section_type = data.get("ssrComponent")
         self.section_number = data.get("section")
@@ -92,7 +92,7 @@ class ClassSection(Base):
             return None
     
     def __repr__(self):
-        return f"<ClassSection {self.class_nbr} ({self.roster}): {self.section_type} {self.section_number}>"
+        return f"<ClassSection {self.class_nbr} ({self.semester}): {self.section_type} {self.section_number}>"
     
     def __str__(self):
         return f"{self.section_type} {self.section_number} - {self.open_status}"

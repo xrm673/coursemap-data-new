@@ -75,7 +75,7 @@ python main.py
 Cornell Classes API:
 - URL: `https://classes.cornell.edu/api/2.0/search/classes.json`
 - 参数：
-  - `roster`: 学期代码（如 "SP26" = Spring 2026）
+  - `semester`: 学期代码（如 "SP26" = Spring 2026）
   - `subject`: 学科代码（如 "MATH"）
 
 ## 架构说明

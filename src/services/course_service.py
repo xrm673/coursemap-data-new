@@ -23,7 +23,7 @@ class CourseService:
         self.repository = repository
         self.api_service = APIService()
     
-    def import_courses_from_api(self, roster, subject):
+    def import_courses_from_api(self, semester, subject):
         """
         从 API 获取课程并保存到数据库
         
@@ -32,18 +32,18 @@ class CourseService:
         2. 对每个 EnrollGroup，判断是否已存在相同的 group
         3. 如果存在则更新，不存在则创建
         4. 创建/更新 EnrollGroupSemester 记录
-        5. 删除旧的 ClassSections（该 group 在当前 roster 的）
+        5. 删除旧的 ClassSections（该 group 在当前 semester 的）
         6. 创建新的 ClassSections, Meetings, Instructors
         
         Args:
-            roster: 学期代码，如 "SP26"
+            semester: 学期代码，如 "SP26"
             subject: 学科代码，如 "MATH"
         
         Returns:
             tuple: (成功数量, 失败数量)
         """
         # 从 API 获取数据
-        classes_data = self.api_service.fetch_courses(roster, subject)
+        classes_data = self.api_service.fetch_courses(semester, subject)
         
         if not classes_data:
             print("没有获取到课程数据")
@@ -58,14 +58,14 @@ class CourseService:
         for class_data in classes_data:
             try:
                 # 1. 创建/更新 Course
-                course = Course(class_data, roster)
+                course = Course(class_data, semester)
                 course = session.merge(course)  # 覆盖旧数据
                 session.flush()
                 
                 # 2. 处理 EnrollGroups
                 enroll_groups_data = class_data.get("enrollGroups", [])
                 for eg_data in enroll_groups_data:
-                    self._process_enroll_group(session, course, eg_data, roster)
+                    self._process_enroll_group(session, course, eg_data, semester)
                 
                 success_count += 1
                 
@@ -90,7 +90,7 @@ class CourseService:
             print(f"✗ 提交失败: {e}")
             return 0, len(classes_data)
     
-    def _process_enroll_group(self, session, course, eg_data, roster):
+    def _process_enroll_group(self, session, course, eg_data, semester):
         """
         处理单个 EnrollGroup
         
@@ -98,7 +98,7 @@ class CourseService:
             session: 数据库会话
             course: Course 对象
             eg_data: enrollGroup API 数据
-            roster: 学期代码
+            semester: 学期代码
         """
         # 1. 计算 matching_key
         matching_type, matching_key = EnrollGroupMatcher.calculate_matching_key(eg_data)
@@ -122,27 +122,27 @@ class CourseService:
         # 4. 创建/获取 EnrollGroupSemester
         egs = session.query(EnrollGroupSemester).filter(
             EnrollGroupSemester.enroll_group_id == enroll_group.id,
-            EnrollGroupSemester.semester == roster
+            EnrollGroupSemester.semester == semester
         ).first()
         
         if not egs:
-            egs = EnrollGroupSemester(roster)
+            egs = EnrollGroupSemester(semester)
             egs.enroll_group_id = enroll_group.id
             session.add(egs)
         
-        # 5. 删除该 EnrollGroup 在当前 roster 的旧 ClassSections
+        # 5. 删除该 EnrollGroup 在当前 semester 的旧 ClassSections
         session.query(ClassSection).filter(
             ClassSection.enroll_group_id == enroll_group.id,
-            ClassSection.roster == roster
+            ClassSection.semester == semester
         ).delete()
         session.flush()
         
         # 6. 创建新的 ClassSections
         class_sections_data = eg_data.get("classSections", [])
         for cs_data in class_sections_data:
-            self._create_class_section(session, enroll_group, cs_data, roster)
+            self._create_class_section(session, enroll_group, cs_data, semester)
     
-    def _create_class_section(self, session, enroll_group, cs_data, roster):
+    def _create_class_section(self, session, enroll_group, cs_data, semester):
         """
         创建 ClassSection 及其关联的 Meetings 和 Instructors
         
@@ -150,10 +150,10 @@ class CourseService:
             session: 数据库会话
             enroll_group: EnrollGroup 对象
             cs_data: classSection API 数据
-            roster: 学期代码
+            semester: 学期代码
         """
         # 1. 创建 ClassSection
-        class_section = ClassSection(cs_data, roster)
+        class_section = ClassSection(cs_data, semester)
         class_section.enroll_group_id = enroll_group.id
         session.add(class_section)
         session.flush()
@@ -163,7 +163,7 @@ class CourseService:
         for meeting_data in meetings_data:
             meeting = Meeting(meeting_data)
             meeting.class_section_class_nbr = class_section.class_nbr
-            meeting.class_section_roster = class_section.roster
+            meeting.class_section_semester = class_section.semester
             session.add(meeting)
             session.flush()  # 获取 meeting.id
             

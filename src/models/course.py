@@ -43,13 +43,13 @@ class Course(Base):
         cascade="all, delete-orphan"  # EnrollGroup 只属于一个 Course，可以级联删除
     )
     
-    def __init__(self, data, roster):
+    def __init__(self, data, semester):
         """
         从 API 数据初始化 Course 对象
         
         Args:
             data: 从 Cornell API 获取的课程数据字典
-            roster: 学期代码，如 "SP26"
+            semester: 学期代码，如 "SP26"
         """
         self.id = data["subject"] + data["catalogNbr"]
         self.subject = data["subject"]
