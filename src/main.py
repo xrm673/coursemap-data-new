@@ -45,8 +45,8 @@ def main():
     print("-" * 60)
     
     # 可以修改这里的参数来导入不同学期和学科的课程
-    roster = "SP26"  # 学期：SP26 = Spring 2026
-    subject = "MATH"  # 学科：MATH = 数学
+    roster = "SP26"
+    subject = "MATH" 
     
     success, fail = course_service.import_courses_from_api(roster, subject)
     print()

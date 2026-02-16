@@ -36,12 +36,20 @@ class Course(Base):
         cascade="all, delete-orphan"  # 删除课程时自动删除所有 attributes
     )
     
-    def __init__(self, data):
+    # 关系：一对多 → EnrollGroup
+    enroll_groups = relationship(
+        "EnrollGroup",
+        back_populates="course",
+        cascade="all, delete-orphan"  # EnrollGroup 只属于一个 Course，可以级联删除
+    )
+    
+    def __init__(self, data, roster):
         """
         从 API 数据初始化 Course 对象
         
         Args:
             data: 从 Cornell API 获取的课程数据字典
+            roster: 学期代码，如 "SP26"
         """
         self.id = data["subject"] + data["catalogNbr"]
         self.subject = data["subject"]
@@ -82,6 +90,10 @@ class Course(Base):
                     attribute_type=attr_type if attr_type else None
                 )
                 self.attributes.append(course_attr)
+        
+        # 注意：enroll_groups 不在此处创建
+        # 现在由 CourseService 负责创建和匹配 EnrollGroups
+        self.enroll_groups = []
     
     def __repr__(self):
         return f"<Course {self.id}: {self.title_short}>"

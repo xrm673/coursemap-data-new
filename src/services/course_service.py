@@ -1,9 +1,13 @@
 """
 Course 业务逻辑服务
 """
-from models import Course
+from models import (
+    Course, EnrollGroup, EnrollGroupSemester, ClassSection, 
+    Meeting, Instructor, MeetingInstructor
+)
 from repositories import CourseRepository
 from .api_service import APIService
+from .enroll_group_matcher import EnrollGroupMatcher
 
 
 class CourseService:
@@ -23,6 +27,14 @@ class CourseService:
         """
         从 API 获取课程并保存到数据库
         
+        新逻辑：
+        1. 导入 Course（覆盖）
+        2. 对每个 EnrollGroup，判断是否已存在相同的 group
+        3. 如果存在则更新，不存在则创建
+        4. 创建/更新 EnrollGroupSemester 记录
+        5. 删除旧的 ClassSections（该 group 在当前 roster 的）
+        6. 创建新的 ClassSections, Meetings, Instructors
+        
         Args:
             roster: 学期代码，如 "SP26"
             subject: 学科代码，如 "MATH"
@@ -37,26 +49,139 @@ class CourseService:
             print("没有获取到课程数据")
             return 0, 0
         
-        # 转换为 Course 对象
-        courses = []
+        print(f"\n正在处理 {len(classes_data)} 门课程...")
+        
+        success_count = 0
+        fail_count = 0
+        session = self.repository.session
+        
         for class_data in classes_data:
             try:
-                course = Course(class_data)
-                courses.append(course)
+                # 1. 创建/更新 Course
+                course = Course(class_data, roster)
+                course = session.merge(course)  # 覆盖旧数据
+                session.flush()
+                
+                # 2. 处理 EnrollGroups
+                enroll_groups_data = class_data.get("enrollGroups", [])
+                for eg_data in enroll_groups_data:
+                    self._process_enroll_group(session, course, eg_data, roster)
+                
+                success_count += 1
+                
             except Exception as e:
-                print(f"转换课程数据失败: {e}")
-                print(f"问题数据: {class_data.get('subject', '?')}{class_data.get('catalogNbr', '?')}")
+                import traceback
+                print(f"  ✗✗ 处理课程失败: {course.id}")
+                print(f"  错误: {e}")
+                print(f"  详细信息:")
+                traceback.print_exc()
+                fail_count += 1
+                # 不要 rollback，继续处理下一门课程
         
-        # 批量保存到数据库
-        if courses:
-            print(f"\n正在保存 {len(courses)} 门课程到数据库...")
-            success, fail = self.repository.save_batch(courses)
-            print(f"✓ 成功保存 {success} 门课程")
-            if fail > 0:
-                print(f"✗ 失败 {fail} 门课程")
-            return success, fail
+        # 提交所有更改
+        try:
+            session.commit()
+            print(f"\n✓ 成功导入 {success_count} 门课程")
+            if fail_count > 0:
+                print(f"✗ 失败 {fail_count} 门课程")
+            return success_count, fail_count
+        except Exception as e:
+            session.rollback()
+            print(f"✗ 提交失败: {e}")
+            return 0, len(classes_data)
+    
+    def _process_enroll_group(self, session, course, eg_data, roster):
+        """
+        处理单个 EnrollGroup
+        
+        Args:
+            session: 数据库会话
+            course: Course 对象
+            eg_data: enrollGroup API 数据
+            roster: 学期代码
+        """
+        # 1. 计算 matching_key
+        matching_type, matching_key = EnrollGroupMatcher.calculate_matching_key(eg_data)
+        
+        # 2. 查找是否存在相同的 EnrollGroup
+        existing_group = EnrollGroupMatcher.find_matching_group(
+            session, course.id, matching_type, matching_key
+        )
+        
+        if existing_group:
+            # 3a. 存在：更新字段
+            existing_group.update_from_data(eg_data)
+            enroll_group = existing_group
         else:
-            return 0, 0
+            # 3b. 不存在：创建新的
+            enroll_group = EnrollGroup(eg_data, matching_type, matching_key)
+            enroll_group.course_id = course.id
+            session.add(enroll_group)
+            session.flush()  # 获取 ID
+        
+        # 4. 创建/获取 EnrollGroupSemester
+        egs = session.query(EnrollGroupSemester).filter(
+            EnrollGroupSemester.enroll_group_id == enroll_group.id,
+            EnrollGroupSemester.semester == roster
+        ).first()
+        
+        if not egs:
+            egs = EnrollGroupSemester(roster)
+            egs.enroll_group_id = enroll_group.id
+            session.add(egs)
+        
+        # 5. 删除该 EnrollGroup 在当前 roster 的旧 ClassSections
+        session.query(ClassSection).filter(
+            ClassSection.enroll_group_id == enroll_group.id,
+            ClassSection.roster == roster
+        ).delete()
+        session.flush()
+        
+        # 6. 创建新的 ClassSections
+        class_sections_data = eg_data.get("classSections", [])
+        for cs_data in class_sections_data:
+            self._create_class_section(session, enroll_group, cs_data, roster)
+    
+    def _create_class_section(self, session, enroll_group, cs_data, roster):
+        """
+        创建 ClassSection 及其关联的 Meetings 和 Instructors
+        
+        Args:
+            session: 数据库会话
+            enroll_group: EnrollGroup 对象
+            cs_data: classSection API 数据
+            roster: 学期代码
+        """
+        # 1. 创建 ClassSection
+        class_section = ClassSection(cs_data, roster)
+        class_section.enroll_group_id = enroll_group.id
+        session.add(class_section)
+        session.flush()
+        
+        # 2. 创建 Meetings
+        meetings_data = cs_data.get("meetings", [])
+        for meeting_data in meetings_data:
+            meeting = Meeting(meeting_data)
+            meeting.class_section_class_nbr = class_section.class_nbr
+            meeting.class_section_roster = class_section.roster
+            session.add(meeting)
+            session.flush()  # 获取 meeting.id
+            
+            # 3. 处理 Instructors
+            instructors_data = meeting_data.get("instructors", [])
+            for instructor_data in instructors_data:
+                # 3a. 创建/更新 Instructor（独立表）
+                instructor = Instructor(instructor_data)
+                instructor = session.merge(instructor)  # 更新名字（如果有变化）
+                
+                # 3b. 创建 MeetingInstructor 关系
+                assign_seq = instructor_data.get("instrAssignSeq", 1)
+                meeting_instructor = MeetingInstructor(
+                    instructor.netid, 
+                    assign_seq
+                )
+                meeting_instructor.meeting_id = meeting.id
+                session.add(meeting_instructor)
     
     def get_course_info(self, course_id):
         """
