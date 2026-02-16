@@ -63,13 +63,36 @@ class Database:
             return False
     
     def create_tables(self):
-        """创建所有数据表"""
+        """创建所有数据表（仅创建不存在的表）"""
         try:
             Base.metadata.create_all(self.engine)
-            print("✓ 数据表创建成功！")
+            print("✓ 数据表创建/确认成功！")
+            # 验证关键表是否存在
+            from sqlalchemy import inspect
+            inspector = inspect(self.engine)
+            existing_tables = inspector.get_table_names()
+            expected_tables = [t.name for t in Base.metadata.sorted_tables]
+            missing = [t for t in expected_tables if t not in existing_tables]
+            if missing:
+                print(f"⚠️ 以下表未创建成功: {missing}")
+                return False
+            print(f"  已确认 {len(expected_tables)} 张表存在: {expected_tables}")
             return True
         except Exception as e:
             print(f"✗ 创建数据表失败: {e}")
+            return False
+    
+    def reset_tables(self):
+        """删除并重建所有数据表（危险操作！会清空所有数据）"""
+        try:
+            print("正在删除所有表...")
+            Base.metadata.drop_all(self.engine)
+            print("正在重建所有表...")
+            Base.metadata.create_all(self.engine)
+            print("✓ 数据表重建成功！")
+            return True
+        except Exception as e:
+            print(f"✗ 重建数据表失败: {e}")
             return False
     
     def get_session(self):

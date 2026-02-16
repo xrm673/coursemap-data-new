@@ -2,6 +2,7 @@
 主程序入口
 演示如何使用整个系统
 """
+import sys
 from database import Database
 from repositories import CourseRepository
 from services import CourseService
@@ -13,6 +14,9 @@ def main():
     print("Cornell 课程数据导入系统")
     print("=" * 60)
     print()
+    
+    # 检查是否需要重建表
+    reset_mode = "--reset" in sys.argv
     
     # 1. 初始化数据库
     print("步骤 1: 初始化数据库连接")
@@ -28,7 +32,16 @@ def main():
     # 2. 创建表（如果不存在）
     print("步骤 2: 创建数据表")
     print("-" * 60)
-    db.create_tables()
+    if reset_mode:
+        print("⚠️ 重建模式：将删除并重建所有表")
+        if not db.reset_tables():
+            print("\n数据表重建失败，程序终止")
+            return
+    else:
+        if not db.create_tables():
+            print("\n数据表创建失败，程序终止")
+            print("提示：如果表结构已变更，请使用 --reset 参数重建表")
+            return
     print()
     
     # 3. 初始化服务层

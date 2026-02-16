@@ -1,8 +1,8 @@
 """
 EnrollGroup 数据模型
-表示课程的注册组（跨学期合并）
+表示课程的注册组（每学期独立，不跨学期合并）
 """
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Text
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, DateTime, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from . import Base
@@ -18,19 +18,18 @@ class EnrollGroup(Base):
     # 外键：指向 courses 表
     course_id = Column(String(20), ForeignKey('courses.id'), nullable=False, index=True)
     
-    # 匹配信息（用于判断不同学期的 EnrollGroup 是否相同）
-    matching_type = Column(String(20), nullable=False, index=True)  # "topic", "instructor", "section_name"
-    matching_key = Column(Text, nullable=False)  # 具体的匹配值
+    # 学期（每个 EnrollGroup 只属于一个学期）
+    semester = Column(String(10), nullable=False, index=True)
+    
+    # Topic（从第一个有 topicDescription 的 classSection 提取）
+    # 业务用途：专业要求匹配、防止重复选同 topic、combined course 关联
+    topic = Column(String(255), nullable=True, index=True)
     
     # 注册组信息
-    credits_minimum = Column(Integer)
-    credits_maximum = Column(Integer)
+    credits_minimum = Column(Float)
+    credits_maximum = Column(Float)
     grading_basis = Column(String(50))
     session_code = Column(String(10))
-    
-    # 追踪字段：记录该 EnrollGroup 最后开设的学期
-    last_offered_semester = Column(String(10), nullable=True, index=True)
-    last_offered_year = Column(Integer, nullable=True, index=True)
     
     # 时间戳
     created_at = Column(DateTime, default=datetime.now, nullable=False)
@@ -39,13 +38,6 @@ class EnrollGroup(Base):
     # 关系：反向引用到 Course
     course = relationship("Course", back_populates="enroll_groups")
     
-    # 关系：一对多 → EnrollGroupSemester
-    semesters = relationship(
-        "EnrollGroupSemester",
-        back_populates="enroll_group",
-        cascade="all, delete-orphan"
-    )
-    
     # 关系：一对多 → ClassSection
     class_sections = relationship(
         "ClassSection",
@@ -53,40 +45,34 @@ class EnrollGroup(Base):
         cascade="all, delete-orphan"
     )
     
-    def __init__(self, data, matching_type, matching_key):
+    # 复合索引：加速 (course_id, semester) 查询
+    __table_args__ = (
+        Index('ix_enroll_group_course_semester', 'course_id', 'semester'),
+    )
+    
+    def __init__(self, data, semester, topic=None):
         """
         从 API 数据初始化 EnrollGroup 对象
         
         Args:
             data: 从 Cornell API 获取的 enrollGroup 数据字典
-            matching_type: 匹配类型 ("topic", "instructor", "section_name")
-            matching_key: 匹配值
+            semester: 学期代码，如 "SP26"
+            topic: topic 描述（从 classSection 提取），可为 None
         """
-        self.matching_type = matching_type
-        self.matching_key = matching_key
+        self.semester = semester
+        self.topic = topic
         self.credits_minimum = data.get("unitsMinimum")
         self.credits_maximum = data.get("unitsMaximum")
         self.grading_basis = data.get("gradingBasis")
         self.session_code = data.get("sessionCode")
         
-        # 注意：class_sections 和 semesters 在外部创建和关联
+        # class_sections 在外部创建和关联
         self.class_sections = []
-        self.semesters = []
-    
-    def update_from_data(self, data):
-        """
-        从 API 数据更新 EnrollGroup 字段（覆盖）
-        
-        Args:
-            data: 从 Cornell API 获取的 enrollGroup 数据字典
-        """
-        self.credits_minimum = data.get("unitsMinimum")
-        self.credits_maximum = data.get("unitsMaximum")
-        self.grading_basis = data.get("gradingBasis")
-        self.session_code = data.get("sessionCode")
     
     def __repr__(self):
-        return f"<EnrollGroup {self.id}: {self.course_id} [{self.matching_type}]>"
+        topic_str = f" topic={self.topic[:20]}" if self.topic else ""
+        return f"<EnrollGroup {self.id}: {self.course_id} {self.semester}{topic_str}>"
     
     def __str__(self):
-        return f"{self.session_code} ({self.credits_minimum}-{self.credits_maximum} credits) [{self.matching_type}={self.matching_key[:30]}...]"
+        topic_str = f" [{self.topic[:30]}]" if self.topic else ""
+        return f"{self.session_code} ({self.credits_minimum}-{self.credits_maximum} credits){topic_str}"

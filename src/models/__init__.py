@@ -10,7 +10,6 @@ Base = declarative_base()
 from .course import Course
 from .course_attribute import CourseAttribute
 from .enroll_group import EnrollGroup
-from .enroll_group_semester import EnrollGroupSemester
 from .class_section import ClassSection
 from .meeting import Meeting
 from .instructor import Instructor
@@ -21,7 +20,6 @@ __all__ = [
     'Course', 
     'CourseAttribute', 
     'EnrollGroup', 
-    'EnrollGroupSemester',
     'ClassSection',
     'Meeting',
     'Instructor',
