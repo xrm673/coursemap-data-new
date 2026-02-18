@@ -1,9 +1,10 @@
 """
 Course 业务逻辑服务
 """
+import json
 from models import (
     Course, EnrollGroup, ClassSection, 
-    Meeting, Instructor, MeetingInstructor
+    Meeting, Instructor, MeetingInstructor, CombinedGroup
 )
 from repositories import CourseRepository
 from utils import extract_year, is_later_or_equal, is_later
@@ -234,12 +235,25 @@ class CourseService:
         if existing_eg:
             # 3a. 已存在：保持不变（根据需求，这些字段几乎不更新）
             print(f"  → EnrollGroup 已存在 (ID={existing_eg.id}, first_section={first_section_number})")
+            
+            # 更新 combined_with_json（如果 API 数据变了）
+            simple_combinations = eg_data.get("simpleCombinations", [])
+            new_json = json.dumps(simple_combinations) if simple_combinations else None
+            if new_json != existing_eg.combined_with_json:
+                existing_eg.combined_with_json = new_json
+            
             return existing_eg, False
         else:
             # 3b. 不存在：创建新的（不打印日志）
             topic = self._extract_topic(eg_data)
             enroll_group = EnrollGroup(eg_data, semester, first_section_number, topic)
             enroll_group.course_id = course.id
+            
+            # 存储 simpleCombinations
+            simple_combinations = eg_data.get("simpleCombinations", [])
+            if simple_combinations:
+                enroll_group.combined_with_json = json.dumps(simple_combinations)
+            
             session.add(enroll_group)
             session.flush()  # 获取 ID
             return enroll_group, True
@@ -437,3 +451,187 @@ class CourseService:
             list: [(attribute_value, count), ...] 按课程数量降序
         """
         return self.repository.get_attribute_statistics()
+    
+    def resolve_combined_groups(self, semester):
+        """
+        解析某学期的所有 combined 关系，建立 CombinedGroup
+        
+        流程：
+        1. 查询所有有 combined_with_json 的 EnrollGroup
+        2. 解析 JSON，尝试匹配目标 EnrollGroup
+        3. 使用 Union-Find 算法，将所有关联的 EG 分组
+        4. 为每个组创建 CombinedGroup，更新 EG 的 combined_group_id
+        
+        Args:
+            semester: 学期代码，如 "SP26"
+        
+        Returns:
+            dict: 统计信息
+        """
+        session = self.repository.session
+        
+        print(f"\n{'='*60}")
+        print(f"解析 {semester} 的 Combined Course 关系")
+        print(f"{'='*60}")
+        
+        # 1. 获取所有有 combined 数据的 EnrollGroup
+        enroll_groups = session.query(EnrollGroup).filter(
+            EnrollGroup.semester == semester,
+            EnrollGroup.combined_with_json.isnot(None)
+        ).all()
+        
+        if not enroll_groups:
+            print("没有需要处理 combined 关系的 EnrollGroup")
+            return {'groups_created': 0, 'matches_success': 0, 'matches_failed': 0}
+        
+        print(f"找到 {len(enroll_groups)} 个需要处理 combined 关系的 EnrollGroup\n")
+        
+        # 2. 构建匹配关系（图的边）
+        edges = []  # [(eg_id_1, eg_id_2), ...]
+        match_stats = {'success': 0, 'failed': 0}
+        
+        for eg in enroll_groups:
+            try:
+                combined_list = json.loads(eg.combined_with_json)
+            except json.JSONDecodeError:
+                print(f"  ⚠️ JSON 解析失败: {eg.course_id} EG#{eg.id}")
+                continue
+            
+            for combined_course in combined_list:
+                target_subject = combined_course.get('subject')
+                target_catalog = combined_course.get('catalogNbr')
+                
+                if not target_subject or not target_catalog:
+                    continue
+                
+                target_course_id = target_subject + target_catalog
+                
+                # 尝试匹配目标 EnrollGroup
+                matched_eg = self._find_matching_enroll_group(
+                    session, target_course_id, semester, eg
+                )
+                
+                if matched_eg:
+                    edges.append((eg.id, matched_eg.id))
+                    match_stats['success'] += 1
+                else:
+                    print(f"  ⚠️ 无法匹配: {eg.course_id} EG#{eg.id} → {target_course_id}")
+                    match_stats['failed'] += 1
+        
+        print(f"\n匹配统计: 成功 {match_stats['success']}, 失败 {match_stats['failed']}")
+        
+        # 3. 使用 Union-Find 分组
+        groups = self._find_connected_components(edges)
+        
+        print(f"找到 {len(groups)} 个 Combined Group\n")
+        
+        # 4. 创建 CombinedGroup 并更新 EnrollGroup
+        for idx, group_egs in enumerate(groups, 1):
+            # 创建新的 CombinedGroup
+            combined_group = CombinedGroup(semester=semester)
+            session.add(combined_group)
+            session.flush()
+            
+            # 更新所有成员的 combined_group_id
+            course_info = []
+            for eg_id in group_egs:
+                eg = session.query(EnrollGroup).get(eg_id)
+                eg.combined_group_id = combined_group.id
+                course_info.append(f"{eg.course_id} (EG#{eg.id})")
+            
+            # 打印组信息
+            print(f"  Combined Group {combined_group.id}: {', '.join(course_info)}")
+        
+        session.commit()
+        print(f"\n{'='*60}")
+        print(f"✓ Combined 关系解析完成！")
+        print(f"{'='*60}\n")
+        
+        return {
+            'groups_created': len(groups),
+            'matches_success': match_stats['success'],
+            'matches_failed': match_stats['failed']
+        }
+    
+    def _find_matching_enroll_group(self, session, target_course_id, semester, source_eg):
+        """
+        按优先级匹配目标 EnrollGroup
+        
+        优先级：
+        1. Topic 相同（非空）
+        2. first_section_number 相同
+        3. 目标课程只有一个 EnrollGroup
+        
+        Args:
+            session: 数据库会话
+            target_course_id: 目标课程 ID
+            semester: 学期代码
+            source_eg: 源 EnrollGroup
+        
+        Returns:
+            EnrollGroup 或 None
+        """
+        # 查询目标课程的所有 EnrollGroup
+        target_egs = session.query(EnrollGroup).filter(
+            EnrollGroup.course_id == target_course_id,
+            EnrollGroup.semester == semester
+        ).all()
+        
+        if not target_egs:
+            return None
+        
+        # 优先级 1: Topic 匹配（都非空且相同）
+        if source_eg.topic:
+            for target_eg in target_egs:
+                if target_eg.topic == source_eg.topic:
+                    return target_eg
+        
+        # 优先级 2: first_section_number 匹配
+        for target_eg in target_egs:
+            if target_eg.first_section_number == source_eg.first_section_number:
+                return target_eg
+        
+        # 优先级 3: 只有一个 EnrollGroup
+        if len(target_egs) == 1:
+            return target_egs[0]
+        
+        # 匹配失败
+        return None
+    
+    def _find_connected_components(self, edges):
+        """
+        使用 Union-Find 算法找到所有连通分量
+        
+        Args:
+            edges: [(eg_id_1, eg_id_2), ...]
+        
+        Returns:
+            [set(eg_id, ...), ...]  每个 set 是一个组
+        """
+        parent = {}
+        
+        def find(x):
+            if x not in parent:
+                parent[x] = x
+            if parent[x] != x:
+                parent[x] = find(parent[x])  # 路径压缩
+            return parent[x]
+        
+        def union(x, y):
+            px, py = find(x), find(y)
+            if px != py:
+                parent[px] = py
+        
+        # 建立并查集
+        for x, y in edges:
+            union(x, y)
+        
+        # 分组
+        groups = {}
+        for node in parent:
+            root = find(node)
+            if root not in groups:
+                groups[root] = set()
+            groups[root].add(node)
+        
+        return list(groups.values())

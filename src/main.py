@@ -57,11 +57,17 @@ def main():
     print("步骤 4: 从 API 导入课程数据")
     print("-" * 60)
     
-    # 可以修改这里的参数来导入不同学期和学科的课程
+    # 导入多个学科的课程
     semester = "SP26"
-    subject = "INFO" 
+    subjects = ["INFO", "MATH", "CS"]
     
-    stats = course_service.import_courses_from_api(semester, subject)
+    for subject in subjects:
+        stats = course_service.import_courses_from_api(semester, subject)
+    
+    # 5. 解析 Combined Course 关系
+    print("\n步骤 5: 解析 Combined Course 关系")
+    print("-" * 60)
+    combined_stats = course_service.resolve_combined_groups(semester)
     
     # 关闭会话
     session.close()

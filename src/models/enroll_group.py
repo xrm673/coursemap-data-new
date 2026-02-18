@@ -2,7 +2,7 @@
 EnrollGroup 数据模型
 表示课程的注册组（每学期独立，不跨学期合并）
 """
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, DateTime, Index, UniqueConstraint
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, DateTime, Index, UniqueConstraint, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from . import Base
@@ -35,6 +35,18 @@ class EnrollGroup(Base):
     grading_basis = Column(String(50))
     session_code = Column(String(10))
     
+    # Combined Courses 相关字段
+    # 存储 API 的 simpleCombinations JSON（用于匹配和解析）
+    combined_with_json = Column(Text, nullable=True)
+    
+    # 外键：指向所属的 CombinedGroup
+    combined_group_id = Column(
+        Integer,
+        ForeignKey('combined_groups.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True
+    )
+    
     # 时间戳
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
@@ -48,6 +60,9 @@ class EnrollGroup(Base):
         back_populates="enroll_group",
         cascade="all, delete-orphan"
     )
+    
+    # 关系：反向引用到 CombinedGroup
+    combined_group = relationship("CombinedGroup", back_populates="enroll_groups")
     
     # 复合索引和唯一约束
     __table_args__ = (

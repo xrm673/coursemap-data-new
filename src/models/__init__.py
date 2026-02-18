@@ -14,6 +14,7 @@ from .class_section import ClassSection
 from .meeting import Meeting
 from .instructor import Instructor
 from .meeting_instructor import MeetingInstructor
+from .combined_group import CombinedGroup
 
 __all__ = [
     'Base', 
@@ -23,5 +24,6 @@ __all__ = [
     'ClassSection',
     'Meeting',
     'Instructor',
-    'MeetingInstructor'
+    'MeetingInstructor',
+    'CombinedGroup'
 ]
