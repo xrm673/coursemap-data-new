@@ -2,7 +2,7 @@
 EnrollGroup 数据模型
 表示课程的注册组（每学期独立，不跨学期合并）
 """
-from sqlalchemy import Column, String, Integer, Float, ForeignKey, DateTime, Index
+from sqlalchemy import Column, String, Integer, Float, ForeignKey, DateTime, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from . import Base
@@ -20,6 +20,10 @@ class EnrollGroup(Base):
     
     # 学期（每个 EnrollGroup 只属于一个学期）
     semester = Column(String(10), nullable=False, index=True)
+    
+    # 匹配标识：第一个 ClassSection 的 section_number
+    # 用于区分同一课程、同一学期下的不同 EnrollGroup
+    first_section_number = Column(String(10), nullable=False)
     
     # Topic（从第一个有 topicDescription 的 classSection 提取）
     # 业务用途：专业要求匹配、防止重复选同 topic、combined course 关联
@@ -45,21 +49,26 @@ class EnrollGroup(Base):
         cascade="all, delete-orphan"
     )
     
-    # 复合索引：加速 (course_id, semester) 查询
+    # 复合索引和唯一约束
     __table_args__ = (
         Index('ix_enroll_group_course_semester', 'course_id', 'semester'),
+        # 唯一约束：(course_id, semester, first_section_number) 组合唯一
+        UniqueConstraint('course_id', 'semester', 'first_section_number', 
+                        name='uq_course_semester_first_section'),
     )
     
-    def __init__(self, data, semester, topic=None):
+    def __init__(self, data, semester, first_section_number, topic=None):
         """
         从 API 数据初始化 EnrollGroup 对象
         
         Args:
             data: 从 Cornell API 获取的 enrollGroup 数据字典
             semester: 学期代码，如 "SP26"
+            first_section_number: 第一个 ClassSection 的 section_number（用于匹配）
             topic: topic 描述（从 classSection 提取），可为 None
         """
         self.semester = semester
+        self.first_section_number = first_section_number
         self.topic = topic
         self.credits_minimum = data.get("unitsMinimum")
         self.credits_maximum = data.get("unitsMaximum")

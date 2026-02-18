@@ -27,12 +27,13 @@ class CourseService:
         """
         从 API 获取课程并保存到数据库
         
-        逻辑：
+        新逻辑（增量更新）：
         1. 对每门课程，判断 Course 是更新学期还是历史学期
         2. 更新学期：覆盖 Course 的所有元数据字段
         3. 历史学期：不覆盖 Course 元数据
-        4. EnrollGroup：始终删了重建（每个 EnrollGroup 只属于一个学期）
-        5. ClassSection / Meeting / Instructor：随 EnrollGroup 创建
+        4. EnrollGroup：匹配或创建（不删除旧的）
+        5. ClassSection：匹配并更新 open_status，或创建（不删除旧的）
+        6. Meeting：删了重建（CASCADE 删除 MeetingInstructor）
         
         Args:
             semester: 学期代码，如 "SP26"
@@ -51,7 +52,10 @@ class CourseService:
                 'courses_updated': 0,
                 'courses_skipped_historical': 0,
                 'enroll_groups_created': 0,
-                'enroll_groups_deleted': 0,
+                'enroll_groups_matched': 0,
+                'class_sections_created': 0,
+                'class_sections_updated': 0,
+                'meetings_rebuilt': 0,
                 'failed': 0
             }
         
@@ -66,7 +70,10 @@ class CourseService:
             'courses_updated': 0,
             'courses_skipped_historical': 0,
             'enroll_groups_created': 0,
-            'enroll_groups_deleted': 0,
+            'enroll_groups_matched': 0,
+            'class_sections_created': 0,
+            'class_sections_updated': 0,
+            'meetings_rebuilt': 0,
             'failed': 0
         }
         
@@ -92,30 +99,38 @@ class CourseService:
                     print(f"  → 更新 Course 元数据")
                 else:
                     stats['courses_created'] += 1
-                    # 创建不打印日志
                 
-                # 2. 处理 EnrollGroups（删了重建）
+                # 2. 处理 EnrollGroups（匹配或创建，不删除）
                 enroll_groups_data = class_data.get("enrollGroups", [])
                 if not enroll_groups_data:
                     print(f"  ⚠️ 警告: 课程 {course_id} 没有 enrollGroups")
                     continue
                 
-                # 2a. 删除该 course 在当前 semester 的所有旧 EnrollGroups
-                # （CASCADE 自动删除 ClassSection → Meeting → MeetingInstructor）
-                deleted_count = session.query(EnrollGroup).filter(
-                    EnrollGroup.course_id == course.id,
-                    EnrollGroup.semester == semester
-                ).delete()
-                if deleted_count > 0:
-                    stats['enroll_groups_deleted'] += deleted_count
-                    print(f"  删除 {deleted_count} 个旧的 EnrollGroups")
-                session.flush()
-                
-                # 2b. 创建新的 EnrollGroups
                 for eg_data in enroll_groups_data:
-                    self._create_enroll_group(session, course, eg_data, semester)
-                    stats['enroll_groups_created'] += 1
-                
+                    # 2a. 匹配或创建 EnrollGroup
+                    enroll_group, is_new_eg = self._process_enroll_group(
+                        session, course, eg_data, semester
+                    )
+                    
+                    if is_new_eg:
+                        stats['enroll_groups_created'] += 1
+                    else:
+                        stats['enroll_groups_matched'] += 1
+                    
+                    # 2b. 处理 ClassSections
+                    class_sections_data = eg_data.get("classSections", [])
+                    for cs_data in class_sections_data:
+                        is_new_cs, meetings_count = self._process_class_section(
+                            session, enroll_group, cs_data, semester
+                        )
+                        
+                        if is_new_cs:
+                            stats['class_sections_created'] += 1
+                        else:
+                            stats['class_sections_updated'] += 1
+                        
+                        stats['meetings_rebuilt'] += meetings_count
+            
             except Exception as e:
                 import traceback
                 print(f"  ✗✗ 处理课程失败: {course_id if 'course_id' in locals() else 'UNKNOWN'}")
@@ -132,7 +147,9 @@ class CourseService:
             print(f"导入完成！统计信息：")
             print(f"{'='*60}")
             print(f"课程 - 新建: {stats['courses_created']}, 更新: {stats['courses_updated']}, 历史(跳过元数据): {stats['courses_skipped_historical']}")
-            print(f"注册组 - 新建: {stats['enroll_groups_created']}, 删除旧数据: {stats['enroll_groups_deleted']}")
+            print(f"注册组 - 新建: {stats['enroll_groups_created']}, 匹配: {stats['enroll_groups_matched']}")
+            print(f"班级 - 新建: {stats['class_sections_created']}, 更新: {stats['class_sections_updated']}")
+            print(f"Meeting - 重建: {stats['meetings_rebuilt']}")
             if stats['failed'] > 0:
                 print(f"失败: {stats['failed']}")
             print(f"{'='*60}\n")
@@ -140,6 +157,8 @@ class CourseService:
         except Exception as e:
             session.rollback()
             print(f"✗ 提交失败: {e}")
+            import traceback
+            traceback.print_exc()
             stats['failed'] = len(classes_data)
             return stats
     
@@ -183,6 +202,166 @@ class CourseService:
             # 不更新任何 Course 字段
             return existing_course, True  # 是历史导入
     
+    def _process_enroll_group(self, session, course, eg_data, semester):
+        """
+        匹配或创建 EnrollGroup
+        
+        Args:
+            session: 数据库会话
+            course: Course 对象
+            eg_data: enrollGroup API 数据
+            semester: 学期代码
+        
+        Returns:
+            tuple: (EnrollGroup对象, is_new)
+        """
+        # 1. 提取 first_section_number
+        class_sections_data = eg_data.get("classSections", [])
+        if not class_sections_data:
+            raise ValueError("EnrollGroup 没有 classSections")
+        
+        first_section_number = class_sections_data[0].get("section")
+        if not first_section_number:
+            raise ValueError("第一个 ClassSection 没有 section 字段")
+        
+        # 2. 尝试匹配现有的 EnrollGroup
+        existing_eg = session.query(EnrollGroup).filter(
+            EnrollGroup.course_id == course.id,
+            EnrollGroup.semester == semester,
+            EnrollGroup.first_section_number == first_section_number
+        ).first()
+        
+        if existing_eg:
+            # 3a. 已存在：保持不变（根据需求，这些字段几乎不更新）
+            print(f"  → EnrollGroup 已存在 (ID={existing_eg.id}, first_section={first_section_number})")
+            return existing_eg, False
+        else:
+            # 3b. 不存在：创建新的（不打印日志）
+            topic = self._extract_topic(eg_data)
+            enroll_group = EnrollGroup(eg_data, semester, first_section_number, topic)
+            enroll_group.course_id = course.id
+            session.add(enroll_group)
+            session.flush()  # 获取 ID
+            return enroll_group, True
+    
+    def _process_class_section(self, session, enroll_group, cs_data, semester):
+        """
+        匹配或创建 ClassSection，并处理 Meeting
+        
+        Args:
+            session: 数据库会话
+            enroll_group: EnrollGroup 对象
+            cs_data: classSection API 数据
+            semester: 学期代码
+        
+        Returns:
+            tuple: (is_new, meetings_count)
+        """
+        # 1. 提取 section_number
+        section_number = cs_data.get("section")
+        if not section_number:
+            raise ValueError("ClassSection 没有 section 字段")
+        
+        # 2. 尝试匹配现有的 ClassSection
+        existing_cs = session.query(ClassSection).filter(
+            ClassSection.enroll_group_id == enroll_group.id,
+            ClassSection.section_number == section_number
+        ).first()
+        
+        if existing_cs:
+            # 3a. 已存在：更新 open_status
+            old_status = existing_cs.open_status
+            new_status = cs_data.get("openStatus")
+            
+            if old_status != new_status:
+                existing_cs.open_status = new_status
+                print(f"    → Section {section_number}: {old_status} → {new_status}")
+            # 如果状态未变，不打印
+            
+            # 4. 删了重建 Meeting
+            meetings_count = self._rebuild_meetings(session, existing_cs, cs_data)
+            
+            return False, meetings_count
+        else:
+            # 3b. 不存在：创建新的（不打印日志）
+            class_section = ClassSection(cs_data, semester)
+            class_section.enroll_group_id = enroll_group.id
+            session.add(class_section)
+            session.flush()
+            
+            # 4. 创建 Meeting
+            meetings_count = self._create_meetings(session, class_section, cs_data)
+            
+            return True, meetings_count
+    
+    def _rebuild_meetings(self, session, class_section, cs_data):
+        """
+        删了重建 Meeting（CASCADE 删除 MeetingInstructor）
+        
+        Args:
+            session: 数据库会话
+            class_section: ClassSection 对象
+            cs_data: classSection API 数据
+        
+        Returns:
+            int: 创建的 Meeting 数量
+        """
+        # 1. 删除旧的 Meeting（CASCADE 会自动删除 MeetingInstructor）
+        deleted_count = session.query(Meeting).filter(
+            Meeting.class_section_id == class_section.id
+        ).delete()
+        
+        if deleted_count > 0:
+            print(f"      删除 {deleted_count} 个旧 Meeting")
+        
+        session.flush()
+        
+        # 2. 创建新的 Meeting
+        meetings_count = self._create_meetings(session, class_section, cs_data)
+        
+        return meetings_count
+    
+    def _create_meetings(self, session, class_section, cs_data):
+        """
+        创建 Meeting 和 Instructor
+        
+        Args:
+            session: 数据库会话
+            class_section: ClassSection 对象
+            cs_data: classSection API 数据
+        
+        Returns:
+            int: 创建的 Meeting 数量
+        """
+        meetings_data = cs_data.get("meetings", [])
+        meetings_count = 0
+        
+        for meeting_data in meetings_data:
+            meeting = Meeting(meeting_data)
+            meeting.class_section_id = class_section.id
+            session.add(meeting)
+            session.flush()  # 获取 meeting.id
+            meetings_count += 1
+            
+            # 创建 Instructor 关系
+            instructors_data = meeting_data.get("instructors", [])
+            for instructor_data in instructors_data:
+                # 创建/更新 Instructor（独立表）
+                instructor = Instructor(instructor_data)
+                instructor = session.merge(instructor)  # 更新名字（如果有变化）
+                
+                # 创建 MeetingInstructor 关系
+                assign_seq = instructor_data.get("instrAssignSeq", 1)
+                meeting_instructor = MeetingInstructor(
+                    instructor.netid, 
+                    assign_seq
+                )
+                meeting_instructor.meeting_id = meeting.id
+                session.add(meeting_instructor)
+        
+        # 创建 Meeting 不打印日志
+        return meetings_count
+    
     def _extract_topic(self, eg_data):
         """
         从 enrollGroup 的 classSections 中提取 topic
@@ -201,71 +380,6 @@ class CourseService:
             if topic:
                 return topic
         return None
-    
-    def _create_enroll_group(self, session, course, eg_data, semester):
-        """
-        创建一个新的 EnrollGroup 及其所有子数据
-        
-        Args:
-            session: 数据库会话
-            course: Course 对象
-            eg_data: enrollGroup API 数据
-            semester: 学期代码
-        """
-        # 1. 提取 topic
-        topic = self._extract_topic(eg_data)
-        
-        # 2. 创建 EnrollGroup
-        enroll_group = EnrollGroup(eg_data, semester, topic)
-        enroll_group.course_id = course.id
-        session.add(enroll_group)
-        session.flush()  # 获取 ID
-        
-        # 3. 创建 ClassSections
-        class_sections_data = eg_data.get("classSections", [])
-        for cs_data in class_sections_data:
-            self._create_class_section(session, enroll_group, cs_data, semester)
-    
-    def _create_class_section(self, session, enroll_group, cs_data, semester):
-        """
-        创建 ClassSection 及其关联的 Meetings 和 Instructors
-        
-        Args:
-            session: 数据库会话
-            enroll_group: EnrollGroup 对象
-            cs_data: classSection API 数据
-            semester: 学期代码
-        """
-        # 1. 创建 ClassSection
-        class_section = ClassSection(cs_data, semester)
-        class_section.enroll_group_id = enroll_group.id
-        session.add(class_section)
-        session.flush()
-        
-        # 2. 创建 Meetings
-        meetings_data = cs_data.get("meetings", [])
-        for meeting_data in meetings_data:
-            meeting = Meeting(meeting_data)
-            meeting.class_section_class_nbr = class_section.class_nbr
-            meeting.class_section_semester = class_section.semester
-            session.add(meeting)
-            session.flush()  # 获取 meeting.id
-            
-            # 3. 处理 Instructors
-            instructors_data = meeting_data.get("instructors", [])
-            for instructor_data in instructors_data:
-                # 3a. 创建/更新 Instructor（独立表）
-                instructor = Instructor(instructor_data)
-                instructor = session.merge(instructor)  # 更新名字（如果有变化）
-                
-                # 3b. 创建 MeetingInstructor 关系
-                assign_seq = instructor_data.get("instrAssignSeq", 1)
-                meeting_instructor = MeetingInstructor(
-                    instructor.netid, 
-                    assign_seq
-                )
-                meeting_instructor.meeting_id = meeting.id
-                session.add(meeting_instructor)
     
     def get_course_info(self, course_id):
         """

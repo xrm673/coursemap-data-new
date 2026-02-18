@@ -1,8 +1,8 @@
 """
 ClassSection 数据模型
-表示具体的课程 section（复合主键：classNbr + semester）
+表示具体的课程 section（主键：自增 id）
 """
-from sqlalchemy import Column, String, Integer, ForeignKey, Date, Boolean, Text, PrimaryKeyConstraint
+from sqlalchemy import Column, String, Integer, ForeignKey, Date, Boolean, Text, Index, UniqueConstraint, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from . import Base
@@ -12,17 +12,21 @@ class ClassSection(Base):
     """课程 Section 表"""
     __tablename__ = 'class_sections'
     
-    # 复合主键：classNbr + semester
-    class_nbr = Column(Integer, nullable=False)
-    semester = Column(String(10), nullable=False)
+    # 主键：自增 ID
+    id = Column(Integer, primary_key=True, autoincrement=True)
     
     # 外键：指向 enroll_groups 表
     enroll_group_id = Column(Integer, ForeignKey('enroll_groups.id'), nullable=False, index=True)
     
+    # 匹配标识：section_number（在同一个 EnrollGroup 下唯一）
+    section_number = Column(String(10), nullable=False)
+    
+    # API 数据字段
+    class_nbr = Column(Integer, nullable=False)
+    semester = Column(String(10), nullable=False)
+    
     # Section 基本信息
-    section_name = Column(String(6))  # "LEC001", "DIS202"
-    section_type = Column(String(3))  # "LEC", "DIS", "LAB"
-    section_number = Column(String(3))  # "001", "202"
+    section_type = Column(String(10))  # "LEC", "DIS", "LAB"
     campus = Column(String(10))  # "MAIN", "NYT"
     location = Column(String(20))  # "ITH", "NYCTECH"
     start_date = Column(Date)  # 课程开始日期
@@ -31,7 +35,13 @@ class ClassSection(Base):
     is_component_graded = Column(Boolean)  # true/false
     instruction_mode = Column(String(10))  # "P", "IS", "HY"
     section_topic = Column(Text)  # 主题描述
+    
+    # 频繁更新的字段
     open_status = Column(String(5))  # "O", "C", "W"
+    
+    # 时间戳
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
     
     # 关系：反向引用到 EnrollGroup
     enroll_group = relationship("EnrollGroup", back_populates="class_sections")
@@ -45,7 +55,10 @@ class ClassSection(Base):
     
     # 表级约束
     __table_args__ = (
-        PrimaryKeyConstraint('class_nbr', 'semester', name='pk_class_section'),
+        # 唯一约束：在同一个 EnrollGroup 下，section_number 唯一
+        UniqueConstraint('enroll_group_id', 'section_number', name='uq_eg_section'),
+        # 索引：方便通过 class_nbr + semester 查询
+        Index('ix_class_nbr_semester', 'class_nbr', 'semester'),
     )
     
     def __init__(self, data, semester):
@@ -60,7 +73,6 @@ class ClassSection(Base):
         self.class_nbr = data.get("classNbr")
         self.section_type = data.get("ssrComponent")
         self.section_number = data.get("section")
-        self.section_name = self.section_type + self.section_number
         self.campus = data.get("campus")
         self.location = data.get("location")
         self.add_consent = data.get("addConsent")
@@ -92,7 +104,7 @@ class ClassSection(Base):
             return None
     
     def __repr__(self):
-        return f"<ClassSection {self.class_nbr} ({self.semester}): {self.section_type} {self.section_number}>"
+        return f"<ClassSection {self.id}: {self.section_type} {self.section_number} ({self.semester})>"
     
     def __str__(self):
         return f"{self.section_type} {self.section_number} - {self.open_status}"

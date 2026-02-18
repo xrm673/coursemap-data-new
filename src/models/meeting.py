@@ -2,7 +2,7 @@
 Meeting 数据模型
 表示课程的具体上课时间和地点
 """
-from sqlalchemy import Column, String, Integer, ForeignKey, Date, DateTime, ForeignKeyConstraint
+from sqlalchemy import Column, String, Integer, ForeignKey, Date, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from . import Base
@@ -15,9 +15,8 @@ class Meeting(Base):
     # 主键：自增ID
     id = Column(Integer, primary_key=True, autoincrement=True)
     
-    # 外键：指向 class_sections 表（复合外键）
-    class_section_class_nbr = Column(Integer, nullable=False)
-    class_section_semester = Column(String(10), nullable=False)
+    # 外键：指向 class_sections 表（简化为单一外键）
+    class_section_id = Column(Integer, ForeignKey('class_sections.id', ondelete='CASCADE'), nullable=False, index=True)
     
     # Meeting 信息
     time_start = Column(String(10))  # "09:05AM"
@@ -38,16 +37,6 @@ class Meeting(Base):
         "MeetingInstructor",
         back_populates="meeting",
         cascade="all, delete-orphan"
-    )
-    
-    # 表级约束：复合外键（添加级联删除）
-    __table_args__ = (
-        ForeignKeyConstraint(
-            ['class_section_class_nbr', 'class_section_semester'],
-            ['class_sections.class_nbr', 'class_sections.semester'],
-            name='fk_meeting_class_section',
-            ondelete='CASCADE'  # 当 ClassSection 被删除时，自动删除相关的 Meetings
-        ),
     )
     
     def __init__(self, data):
