@@ -7,6 +7,7 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 
 # 导出所有模型
+from .subject import Subject
 from .course import Course
 from .course_attribute import CourseAttribute
 from .enroll_group import EnrollGroup
@@ -17,7 +18,8 @@ from .meeting_instructor import MeetingInstructor
 from .combined_group import CombinedGroup
 
 __all__ = [
-    'Base', 
+    'Base',
+    'Subject',
     'Course', 
     'CourseAttribute', 
     'EnrollGroup', 

@@ -4,7 +4,7 @@ Course 业务逻辑服务
 import json
 from models import (
     Course, EnrollGroup, ClassSection, 
-    Meeting, Instructor, MeetingInstructor, CombinedGroup
+    Meeting, Instructor, MeetingInstructor, CombinedGroup, Subject
 )
 from repositories import CourseRepository
 from utils import extract_year, is_later_or_equal, is_later
@@ -635,3 +635,155 @@ class CourseService:
             groups[root].add(node)
         
         return list(groups.values())
+    
+    def initialize_subjects(self, roster):
+        """
+        从 API 获取所有 subject 并存入数据库
+        如果已存在则跳过
+        
+        Args:
+            roster: 学期代码，如 "SP26"
+        
+        Returns:
+            dict: 统计信息 + subjects 列表
+        """
+        session = self.repository.session
+        
+        print(f"\n{'='*60}")
+        print(f"初始化 Subject 数据")
+        print(f"{'='*60}")
+        
+        # 1. 从 API 获取 subjects
+        subjects_data = self.api_service.fetch_subjects(roster)
+        
+        if not subjects_data:
+            print("没有获取到 Subject 数据")
+            return {'created': 0, 'skipped': 0, 'subjects': []}
+        
+        print(f"从 API 获取到 {len(subjects_data)} 个 Subject\n")
+        
+        # 2. 遍历插入（已存在则跳过）
+        created_count = 0
+        skipped_count = 0
+        subject_values = []  # 记录这个学期的所有 subject values
+        
+        for subject_data in subjects_data:
+            value = subject_data['value']
+            subject_values.append(value)  # 记录
+            
+            # 检查是否已存在
+            existing = session.query(Subject).get(value)
+            
+            if existing:
+                skipped_count += 1
+                continue  # 跳过
+            
+            # 创建新的 Subject
+            subject = Subject(
+                value=value,
+                description=subject_data['descr'],
+                description_formal=subject_data['descrformal']
+            )
+            session.add(subject)
+            created_count += 1
+        
+        session.commit()
+        
+        print(f"创建: {created_count} 个")
+        print(f"跳过: {skipped_count} 个")
+        print(f"总计: {created_count + skipped_count} 个")
+        print(f"{'='*60}\n")
+        
+        return {
+            'created': created_count,
+            'skipped': skipped_count,
+            'subjects': subject_values  # 返回该学期的 subject 列表
+        }
+    
+    def import_all_subjects(self, semester, subject_values=None):
+        """
+        导入某学期的所有学科课程
+        
+        Args:
+            semester: 学期代码，如 "SP26"
+            subject_values: 可选，指定要导入的 subject 列表。
+                           如果不提供，则从数据库查询所有 subjects
+        
+        Returns:
+            dict: 统计信息
+        """
+        session = self.repository.session
+        
+        print(f"\n{'='*60}")
+        print(f"导入所有学科的 {semester} 课程")
+        print(f"{'='*60}")
+        
+        # 1. 获取要导入的 Subject 列表
+        if subject_values:
+            # 使用提供的 subject 列表（该学期实际存在的）
+            subjects = session.query(Subject).filter(
+                Subject.value.in_(subject_values)
+            ).order_by(Subject.value).all()
+            print(f"根据 API 数据，准备导入 {len(subjects)} 个学科的课程")
+        else:
+            # 从数据库查询所有 Subject
+            subjects = session.query(Subject).order_by(Subject.value).all()
+            print(f"准备导入数据库中所有 {len(subjects)} 个学科的课程")
+        
+        print()
+        
+        # 2. 统计信息
+        total_stats = {
+            'subjects_total': len(subjects),
+            'subjects_success': 0,
+            'subjects_failed': 0,
+            'courses_total': 0,
+            'enroll_groups_total': 0,
+            'class_sections_total': 0
+        }
+        
+        # 3. 遍历每个 Subject
+        for idx, subject in enumerate(subjects, 1):
+            print(f"\n{'='*60}")
+            print(f"[{idx}/{len(subjects)}] {subject.value} - {subject.description}")
+            print(f"进度: {idx/len(subjects)*100:.1f}%")
+            print(f"{'='*60}")
+            
+            try:
+                # 导入该 Subject 的课程
+                stats = self.import_courses_from_api(semester, subject.value)
+                
+                # 累加统计
+                total_stats['subjects_success'] += 1
+                total_stats['courses_total'] += (
+                    stats.get('courses_created', 0) + 
+                    stats.get('courses_updated', 0) + 
+                    stats.get('courses_skipped_historical', 0)
+                )
+                total_stats['enroll_groups_total'] += (
+                    stats.get('enroll_groups_created', 0) + 
+                    stats.get('enroll_groups_matched', 0)
+                )
+                total_stats['class_sections_total'] += (
+                    stats.get('class_sections_created', 0) + 
+                    stats.get('class_sections_updated', 0)
+                )
+                
+            except Exception as e:
+                print(f"\n✗✗ 导入失败: {e}")
+                import traceback
+                traceback.print_exc()
+                total_stats['subjects_failed'] += 1
+                continue  # 继续下一个 Subject
+        
+        # 4. 打印总结
+        print(f"\n{'='*60}")
+        print(f"所有学科导入完成")
+        print(f"{'='*60}")
+        print(f"学科 - 成功: {total_stats['subjects_success']}/{total_stats['subjects_total']}, 失败: {total_stats['subjects_failed']}")
+        print(f"课程总数: {total_stats['courses_total']}")
+        print(f"注册组总数: {total_stats['enroll_groups_total']}")
+        print(f"班级总数: {total_stats['class_sections_total']}")
+        print(f"{'='*60}\n")
+        
+        return total_stats

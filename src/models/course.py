@@ -2,7 +2,7 @@
 Course 数据模型
 使用 SQLAlchemy ORM 定义
 """
-from sqlalchemy import Column, String, Integer, Text
+from sqlalchemy import Column, String, Integer, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from . import Base
 
@@ -15,7 +15,7 @@ class Course(Base):
     id = Column(String(20), primary_key=True)
     
     # 基本信息
-    subject = Column(String(10), nullable=False)
+    subject = Column(String(10), ForeignKey('subjects.value'), nullable=False)
     number = Column(String(10), nullable=False)
     level = Column(Integer, nullable=False)
     title_short = Column(String(255))
@@ -32,6 +32,9 @@ class Course(Base):
     # 追踪字段：记录课程最后开设的学期
     last_offered_semester = Column(String(10), nullable=True)
     last_offered_year = Column(Integer, nullable=True, index=True)
+    
+    # 关系：反向引用到 Subject
+    subject_info = relationship("Subject", back_populates="courses")
     
     # 关系：一对多 → CourseAttribute
     attributes = relationship(
