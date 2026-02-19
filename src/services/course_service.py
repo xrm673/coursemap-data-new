@@ -320,15 +320,18 @@ class CourseService:
         Returns:
             int: 创建的 Meeting 数量
         """
-        # 1. 删除旧的 Meeting（CASCADE 会自动删除 MeetingInstructor）
-        deleted_count = session.query(Meeting).filter(
+        # 1. 删除旧的 Meeting
+        # 注意：必须先加载对象再删除，才能触发 ORM cascade
+        # 使用 .delete() 的批量删除不会触发 ORM cascade！
+        old_meetings = session.query(Meeting).filter(
             Meeting.class_section_id == class_section.id
-        ).delete()
+        ).all()
         
-        if deleted_count > 0:
-            print(f"      删除 {deleted_count} 个旧 Meeting")
-        
-        session.flush()
+        if old_meetings:
+            for meeting in old_meetings:
+                session.delete(meeting)  # 会触发 cascade，自动删除 meeting_instructors
+            print(f"      删除 {len(old_meetings)} 个旧 Meeting")
+            session.flush()
         
         # 2. 创建新的 Meeting
         meetings_count = self._create_meetings(session, class_section, cs_data)
@@ -359,13 +362,27 @@ class CourseService:
             
             # 创建 Instructor 关系
             instructors_data = meeting_data.get("instructors", [])
+            
+            # 去重：同一个 instructor 可能在 API 中出现多次（Cornell API bug）
+            # 只保留每个 netid 的第一次出现（最小 assign_seq）
+            seen_netids = {}
             for instructor_data in instructors_data:
+                netid = instructor_data.get("netid")
+                assign_seq = instructor_data.get("instrAssignSeq", 1)
+                
+                if netid not in seen_netids:
+                    seen_netids[netid] = (instructor_data, assign_seq)
+                elif assign_seq < seen_netids[netid][1]:
+                    # 如果当前的 assign_seq 更小，替换
+                    seen_netids[netid] = (instructor_data, assign_seq)
+            
+            # 插入去重后的 instructors
+            for instructor_data, assign_seq in seen_netids.values():
                 # 创建/更新 Instructor（独立表）
                 instructor = Instructor(instructor_data)
                 instructor = session.merge(instructor)  # 更新名字（如果有变化）
                 
                 # 创建 MeetingInstructor 关系
-                assign_seq = instructor_data.get("instrAssignSeq", 1)
                 meeting_instructor = MeetingInstructor(
                     instructor.netid, 
                     assign_seq
