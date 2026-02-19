@@ -23,6 +23,9 @@ course-map-data/
 │   ├── database.py                # 数据库连接管理
 │   └── main.py                    # 主程序入口
 │
+├── scripts/                       # 工具脚本
+│   └── verify_data_integrity.py   # 数据完整性检查
+│
 ├── requirements.txt               # Python 依赖
 ├── .env.example                   # 环境变量示例
 ├── .gitignore                     # Git 忽略文件
@@ -248,6 +251,36 @@ all_stats = course_service.import_all_subjects("SP26")
 
 # 解析 combined groups
 combined_stats = course_service.resolve_combined_groups("SP26")
+```
+
+## 数据完整性检查
+
+在导入数据后，可以运行数据完整性检查脚本来验证导入是否完整：
+
+```bash
+# 检查某个学期的所有数据
+python scripts/verify_data_integrity.py --semester FA25
+
+# 只检查特定 subjects
+python scripts/verify_data_integrity.py --semester FA25 --subjects CS MATH
+```
+
+**检查内容：**
+1. **Subject 层面**：数据库中的 subjects 数量是否与 API 一致
+2. **Course 层面**：每个 subject 的课程数量是否与 API 一致
+3. **EnrollGroup 层面**：每个 subject 的注册组数量是否与 API 一致
+
+**输出示例：**
+```
+【问题 1】缺失的 Subjects (2 个)
+  • BME: API 有 45 门课程，但数据库中一门都没有
+  • MUSIC: API 有 30 门课程，但数据库中一门都没有
+
+【问题 2】Course 数量不匹配 (3 个 subjects)
+  • CS: API 120 门 vs DB 118 门 (差异: -2)
+    缺失的课程:
+      - CS1110: Introduction to Computing
+      - CS2800: Discrete Structures
 ```
 
 ## 依赖说明
