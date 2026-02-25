@@ -1,0 +1,100 @@
+program:
+  id: ARTH
+  name: "History of Art"
+  type: major
+  year_dependent: false
+  major_dependent: false
+  college_dependent: false
+  concentration_dependent: false
+  onboarding_courses:
+    - ARTH1100
+    - ARTH2000
+    - ARTH1178
+    - ARTH1154
+    - ARTH2750
+    - ARTH4101
+  requirement_sets:
+    - applies_to: {}
+      requirement_ids: [arth1, arth2, arth3, arth4, arth5]
+  conflict_domains:
+    - [arth1, arth2, arth3, arth4, arth5]
+
+requirements:
+  - id: arth1
+    name: "Core"
+    ui_type: GROUP
+    description:
+      - "The History of Art major requires the completion of all three courses listed below."
+      - "Students must receive a grade of B or higher in ARTH 1100."
+      - "If students have not taken ARTH 1100 by the spring of sophomore year, they must complete a 4000-level tutorial course and receive a grade of B or higher in order to qualify for the major."
+      - "A grade of B- or higher is required of all other courses to receive credit toward the major."
+    root_node:
+      type: GROUP
+      pick: 3
+      children:
+        - type: COURSE_SET
+          title: "Art History"
+          pick: 1
+          query:
+            included: [ARTH1100]
+        - type: COURSE_SET
+          title: "Visual Studies"
+          pick: 1
+          query:
+            included: [ARTH2000]
+        - type: COURSE_SET
+          title: "Methods Seminar"
+          pick: 1
+          query:
+            included: [ARTH4101]
+
+  - id: arth2
+    name: "ARTH 2XXX"
+    ui_type: LIST
+    description:
+      - "Take at least one ARTH course at the 2000-level."
+    root_node:
+      type: COURSE_SET
+      pick: 1
+      query:
+        subject: ARTH
+        level: 2
+        excluded: [ARTH2000]
+
+  - id: arth3
+    name: "ARTH 3XXX"
+    ui_type: LIST
+    description:
+      - "Take at least one ARTH course at the 3000-level."
+    root_node:
+      type: COURSE_SET
+      pick: 1
+      query:
+        subject: ARTH
+        level: 3
+
+  - id: arth4
+    name: "ARTH 4XXX"
+    ui_type: LIST
+    description:
+      - "Take at least two ARTH courses at the 4000-level."
+    root_node:
+      type: COURSE_SET
+      pick: 2
+      query:
+        subject: ARTH
+        level: 4
+        excluded: [ARTH4101]
+
+  - id: arth5
+    name: "Electives"
+    ui_type: LIST
+    description:
+      - "Take three additional ARTH electives at the 3000-level or higher."
+    root_node:
+      type: COURSE_SET
+      pick: 3
+      query:
+        subject: ARTH
+        min_level: 3
+        excluded: [ARTH2000, ARTH4101]
