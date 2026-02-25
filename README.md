@@ -67,11 +67,6 @@ python src/main.py --help
 
 #### 基本用法
 
-**重建表 + 导入指定学期的所有课程：**
-```bash
-python src/main.py --reset --semester SP26
-```
-
 **增量更新指定学期：**
 ```bash
 python src/main.py --semester FA26
@@ -92,7 +87,6 @@ python src/main.py --semester SP26 --skip-combined
 | 参数 | 必需 | 说明 | 示例 |
 |------|------|------|------|
 | `--semester` | ✅ | 学期代码 | `SP26`, `FA25`, `WI26` |
-| `--reset` | ❌ | 重建数据库表（警告：删除所有数据） | - |
 | `--subjects` | ❌ | 指定要导入的学科列表 | `INFO CS MATH` |
 | `--skip-combined` | ❌ | 跳过 Combined Groups 解析 | - |
 
@@ -179,13 +173,13 @@ Cornell Classes API:
 
 #### 场景 1: 首次部署（完整导入）
 ```bash
-python src/main.py --reset --semester SP26
+python src/main.py --semester SP26
 ```
 导入 SP26 所有学科的课程（200+ 学科，预计 15-30 分钟）
 
 #### 场景 2: 快速测试
 ```bash
-python src/main.py --reset --semester SP26 --subjects INFO CS MATH
+python src/main.py --semester SP26 --subjects INFO CS MATH
 ```
 只导入 3 个学科进行测试（预计 1-2 分钟）
 
@@ -293,7 +287,6 @@ python scripts/verify_data_integrity.py --semester FA25 --subjects CS MATH
 ## 注意事项
 
 - `.env` 文件包含敏感信息，已加入 `.gitignore`，不会提交到 Git
-- 首次运行必须使用 `--reset` 参数重建表结构
 - 支持重复导入同一学期（增量更新）
 - 历史学期导入不会覆盖最新数据
 - 导入所有学科（200+）预计需要 15-30 分钟

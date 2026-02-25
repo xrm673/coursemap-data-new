@@ -17,16 +17,9 @@ def parse_args():
         epilog="""
 使用示例:
   python src/main.py --semester SP26                      # 导入 SP26 所有课程
-  python src/main.py --reset --semester SP26              # 重建表并导入
   python src/main.py --semester FA26 --subjects INFO CS   # 只导入指定学科
   python src/main.py --semester SP26 --skip-combined      # 跳过 combined 解析
         """
-    )
-    
-    parser.add_argument(
-        '--reset',
-        action='store_true',
-        help='重建数据库表（警告：会删除所有数据）'
     )
     
     parser.add_argument(
@@ -82,16 +75,9 @@ def main():
     # 2. 创建表（如果不存在）
     print("步骤 2: 创建数据表")
     print("-" * 60)
-    if args.reset:
-        print("⚠️ 重建模式：将删除并重建所有表")
-        if not db.reset_tables():
-            print("\n数据表重建失败，程序终止")
-            return
-    else:
-        if not db.create_tables():
-            print("\n数据表创建失败，程序终止")
-            print("提示：如果表结构已变更，请使用 --reset 参数重建表")
-            return
+    if not db.create_tables():
+        print("\n数据表创建失败，程序终止")
+        return
     print()
     
     # 3. 初始化服务层
