@@ -5,7 +5,6 @@ NodeCourse 数据模型
 字段说明：
 - topic: 空字符串表示不限 topic，非空表示只有该 topic 的 enroll group 才算
 - combined_group_id: 同一 combined group 的课程共享同一个值；NULL 表示不属于任何 combined group
-- is_primary: True 表示 YAML query 直接匹配到的课程；False 表示因 combined 关系自动加入的课程
 """
 from sqlalchemy import Column, String, Integer, Boolean, Text, ForeignKey, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
@@ -34,10 +33,6 @@ class NodeCourse(Base):
     # 同一 combined group 的课程共享同一个值；NULL 表示不属于任何 combined group
     combined_group_id = Column(Integer, nullable=True)
     
-    # 是否为 YAML 中直接匹配的课程（前端优先展示）
-    # False 表示因 combined 关系自动发现并加入的课程
-    is_primary = Column(Boolean, nullable=False, default=True)
-    
     # 备注
     comment = Column(Text, nullable=True)
     
@@ -56,5 +51,4 @@ class NodeCourse(Base):
     def __repr__(self):
         topic_str = f" topic='{self.topic}'" if self.topic else ""
         combined_str = f" cg={self.combined_group_id}" if self.combined_group_id else ""
-        primary_str = "" if self.is_primary else " (combined)"
-        return f"<NodeCourse {self.node_id} → {self.course_id}{topic_str}{combined_str}{primary_str}>"
+        return f"<NodeCourse {self.node_id} → {self.course_id}{topic_str}{combined_str}>"

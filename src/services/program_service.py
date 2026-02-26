@@ -315,7 +315,6 @@ class ProgramService:
                         node_id=node.id,
                         course_id=course_id,
                         topic=topic,
-                        is_primary=True,
                         comment=comment,
                         recommended=recommended
                     )
@@ -371,7 +370,6 @@ class ProgramService:
                             course_id=combined_cid,
                             topic=topic,
                             combined_group_id=cg_id,
-                            is_primary=False,
                         )
                         self.session.add(nc)
                         inserted[combined_key] = nc
