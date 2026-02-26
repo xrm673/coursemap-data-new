@@ -1,0 +1,293 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Program Requirements YAML Schema",
+  "description": "Schema for defining program (major/minor) requirements in YAML format",
+  "type": "object",
+  "required": ["program", "requirements"],
+  "additionalProperties": false,
+  "properties": {
+    "program": { "$ref": "#/definitions/program" },
+    "requirements": {
+      "type": "array",
+      "description": "List of all requirements for this program",
+      "items": { "$ref": "#/definitions/requirement" },
+      "minItems": 1
+    }
+  },
+  "definitions": {
+    "program": {
+      "type": "object",
+      "description": "Top-level metadata for the program (major or minor)",
+      "required": ["id", "name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the program, e.g. 'ARTH'",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable program name, e.g. 'History of Art'",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "description": "Whether this is a major or a minor",
+          "enum": ["major", "minor"]
+        },
+        "year_dependent": {
+          "type": "boolean",
+          "description": "Whether requirement sets can vary by student entry year"
+        },
+        "major_dependent": {
+          "type": "boolean",
+          "description": "Whether requirement sets can vary by student's major"
+        },
+        "college_dependent": {
+          "type": "boolean",
+          "description": "Whether requirement sets can vary by student's college"
+        },
+        "concentration_dependent": {
+          "type": "boolean",
+          "description": "Whether requirement sets can vary by student's concentration"
+        },
+        "onboarding_courses": {
+          "type": "array",
+          "description": "Suggested introductory courses to show during onboarding",
+          "items": {
+            "type": "string",
+            "description": "Course ID, e.g. 'ARTH1100'"
+          }
+        },
+        "requirement_sets": {
+          "type": "array",
+          "description": "Defines which requirements apply to which students. If not specified, all requirements apply to all students.",
+          "items": { "$ref": "#/definitions/requirement_set" }
+        },
+        "conflict_domains": {
+          "type": "array",
+          "description": "Groups of requirements that cannot be satisfied by the same course. A course used to satisfy one requirement in a domain cannot satisfy any other requirement in that same domain.",
+          "items": {
+            "type": "array",
+            "description": "A single domain: a list of requirement IDs that share a course-use conflict",
+            "items": {
+              "type": "string",
+              "description": "A requirement ID belonging to this domain"
+            },
+            "minItems": 2
+          }
+        }
+      }
+    },
+    "requirement_set": {
+      "type": "object",
+      "description": "Specifies which requirements apply to students matching the given conditions",
+      "required": ["applies_to", "requirement_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "applies_to": {
+          "type": "object",
+          "description": "Conditions that determine which students this set applies to. Empty object means it applies to all students.",
+          "additionalProperties": false,
+          "properties": {
+            "entry_year": {
+              "type": "string",
+              "description": "Only applies to students who entered in this year, e.g. '2023'"
+            },
+            "college_id": {
+              "type": "string",
+              "description": "Only applies to students in this college, e.g. 'AS'"
+            },
+            "major_id": {
+              "type": "string",
+              "description": "Only applies to students with this major, e.g. 'ARTH'"
+            },
+            "concentration_names": {
+              "type": "array",
+              "description": "Only applies to students in one of these concentrations",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          }
+        },
+        "requirement_ids": {
+          "type": "array",
+          "description": "The IDs of the requirements that apply under these conditions",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "description": "A single named requirement within the program",
+      "required": ["id", "name", "ui_type", "root_node"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this requirement within the program, e.g. 'arth1'",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "description": "Short display name, e.g. 'Core'",
+          "minLength": 1
+        },
+        "ui_type": {
+          "type": "string",
+          "description": "How this requirement is presented in the UI. GROUP shows a structured breakdown; LIST shows a flat course list.",
+          "enum": ["GROUP", "LIST"]
+        },
+        "description": {
+          "type": "array",
+          "description": "One or more paragraphs describing this requirement to the student",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "root_node": {
+          "$ref": "#/definitions/node",
+          "description": "The root of the requirement's course-selection tree"
+        }
+      }
+    },
+    "node": {
+      "description": "A node in the requirement tree. Must be either a GROUP or a COURSE_SET.",
+      "oneOf": [
+        { "$ref": "#/definitions/group_node" },
+        { "$ref": "#/definitions/course_set_node" }
+      ]
+    },
+    "group_node": {
+      "type": "object",
+      "description": "An intermediate node that groups child nodes. The student must satisfy `pick` of its children.",
+      "required": ["type", "pick", "children"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "GROUP",
+          "description": "Must be 'GROUP'"
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional display label for this group"
+        },
+        "pick": {
+          "type": "integer",
+          "description": "Number of children the student must satisfy",
+          "minimum": 1
+        },
+        "children": {
+          "type": "array",
+          "description": "Child nodes (each can be a GROUP or a COURSE_SET)",
+          "items": { "$ref": "#/definitions/node" },
+          "minItems": 1
+        }
+      }
+    },
+    "course_set_node": {
+      "type": "object",
+      "description": "A leaf node that contains a set of courses. The student must take `pick` courses from this set.",
+      "required": ["type", "pick", "query"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "COURSE_SET",
+          "description": "Must be 'COURSE_SET'"
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional display label for this course set"
+        },
+        "pick": {
+          "type": "integer",
+          "description": "Number of courses the student must take from this set",
+          "minimum": 1
+        },
+        "query": {
+          "$ref": "#/definitions/query",
+          "description": "Defines which courses belong to this set"
+        }
+      }
+    },
+    "query": {
+      "type": "object",
+      "description": "Specifies which courses are included in a COURSE_SET node. At least one of `subject` or `included` must be present to produce a non-empty course set.",
+      "additionalProperties": false,
+      "properties": {
+        "subject": {
+          "type": "string",
+          "description": "Include all courses with this subject code, e.g. 'ARTH'",
+          "minLength": 1
+        },
+        "level": {
+          "type": "integer",
+          "description": "Restrict to courses at exactly this level (e.g. 3 means 3000-level)",
+          "minimum": 1,
+          "maximum": 9
+        },
+        "min_level": {
+          "type": "integer",
+          "description": "Restrict to courses at this level or higher",
+          "minimum": 1,
+          "maximum": 9
+        },
+        "max_level": {
+          "type": "integer",
+          "description": "Restrict to courses at this level or lower",
+          "minimum": 1,
+          "maximum": 9
+        },
+        "included": {
+          "type": "array",
+          "description": "Explicitly include these course IDs regardless of the subject/level filters",
+          "items": {
+            "type": "string",
+            "description": "Course ID, e.g. 'ARTH1100'"
+          },
+          "minItems": 1
+        },
+        "excluded": {
+          "type": "array",
+          "description": "Explicitly exclude these course IDs even if they match the subject/level filters",
+          "items": {
+            "type": "string",
+            "description": "Course ID, e.g. 'ARTH2000'"
+          },
+          "minItems": 1
+        },
+        "course_overrides": {
+          "type": "object",
+          "description": "Per-course metadata overrides. Keys are course IDs (e.g. 'ARTH1100').",
+          "additionalProperties": {
+            "$ref": "#/definitions/course_override"
+          }
+        }
+      }
+    },
+    "course_override": {
+      "type": "object",
+      "description": "Per-course metadata applied when this course appears in the node",
+      "additionalProperties": false,
+      "properties": {
+        "topics": {
+          "type": "array",
+          "description": "Only enroll groups with one of these topics count towards this requirement. If omitted, all enroll groups count.",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "comment": {
+          "type": "string",
+          "description": "An optional note shown to students about this specific course in this requirement"
+        },
+        "recommended": {
+          "type": "boolean",
+          "description": "Whether this course is specifically recommended by the department for this requirement"
+        }
+      }
+    }
+  }
+}

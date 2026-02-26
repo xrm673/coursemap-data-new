@@ -6,6 +6,8 @@
 使用方法：
   python scripts/import_programs.py --programs ARTH CS
   python scripts/import_programs.py --all
+  python scripts/import_programs.py --validate           # 校验所有 YAML 文件
+  python scripts/import_programs.py --validate ARTH CS   # 校验指定文件
 """
 import sys
 import os
@@ -64,13 +66,16 @@ def parse_args():
   python scripts/import_programs.py --programs ARTH          # 导入 ARTH
   python scripts/import_programs.py --programs ARTH CS MATH  # 导入多个专业
   python scripts/import_programs.py --all                    # 导入所有 YAML 文件
+  python scripts/import_programs.py --validate               # 校验所有 YAML 文件（不需要数据库）
+  python scripts/import_programs.py --validate ARTH          # 校验指定文件
         """
     )
-    
+
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         '--programs',
         nargs='+',
+        metavar='ID',
         help='指定要导入的专业 ID（如 ARTH CS MATH）'
     )
     group.add_argument(
@@ -78,14 +83,62 @@ def parse_args():
         action='store_true',
         help='导入 data/programs/ 目录下的所有 YAML 文件'
     )
-    
+    group.add_argument(
+        '--validate',
+        nargs='*',
+        metavar='ID',
+        help='仅校验 YAML 文件格式，不写入数据库。不加 ID 则校验所有文件。'
+    )
+
     return parser.parse_args()
+
+
+def run_validate(program_ids):
+    """
+    仅做 schema 校验，不连接数据库
+    
+    Args:
+        program_ids: 专业 ID 列表，None 或 [] 表示全部
+    """
+    print("=" * 60)
+    print("YAML 文件 Schema 校验")
+    print("=" * 60)
+
+    yaml_files = find_yaml_files(program_ids if program_ids else None)
+    if not yaml_files:
+        print("没有找到任何 YAML 文件")
+        return
+
+    print(f"校验 {len(yaml_files)} 个文件:\n")
+
+    all_passed = True
+    for pid, yaml_path in yaml_files:
+        errors = ProgramService.validate_yaml(yaml_path)
+        if errors:
+            all_passed = False
+            print(f"✗ {pid} ({os.path.basename(yaml_path)})")
+            for msg in errors:
+                print(msg)
+        else:
+            print(f"✓ {pid} ({os.path.basename(yaml_path)})")
+
+    print()
+    if all_passed:
+        print("所有文件校验通过 ✓")
+    else:
+        print("部分文件存在错误，请修复后再导入 ✗")
+        sys.exit(1)
 
 
 def main():
     """主函数"""
     args = parse_args()
-    
+
+    # --validate 模式：不需要数据库
+    if args.validate is not None:
+        run_validate(args.validate)
+        return
+
     print("=" * 60)
     print("专业要求数据导入")
     print("=" * 60)

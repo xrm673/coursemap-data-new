@@ -2,7 +2,11 @@
 Program 业务逻辑服务
 负责从 YAML 文件导入专业要求数据
 """
+import json
+import os
 import yaml
+import jsonschema
+from jsonschema import validate, ValidationError, Draft7Validator
 from models import (
     Course, Program, Requirement, RequirementSet, RequirementSetRequirement,
     RequirementDomain, RequirementDomainMembership,
@@ -10,9 +14,56 @@ from models import (
 )
 
 
+_SCHEMA_PATH = os.path.join(
+    os.path.dirname(__file__),       # src/services/
+    '..', '..', 'data', 'programs', 'schema.json'
+)
+
+
+def _load_schema():
+    """加载 JSON Schema（只读一次，缓存在模块级别）"""
+    path = os.path.normpath(_SCHEMA_PATH)
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+_SCHEMA = None  # 延迟加载
+
+
 class ProgramService:
     """专业要求导入服务"""
-    
+
+    @staticmethod
+    def validate_yaml(yaml_path):
+        """
+        校验一个 program YAML 文件是否符合 schema。
+
+        Args:
+            yaml_path: YAML 文件路径
+
+        Returns:
+            list[str]: 校验错误列表，空列表表示通过
+
+        Raises:
+            FileNotFoundError: YAML 或 schema 文件不存在
+        """
+        global _SCHEMA
+        if _SCHEMA is None:
+            _SCHEMA = _load_schema()
+
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+
+        validator = Draft7Validator(_SCHEMA)
+        errors = sorted(validator.iter_errors(data), key=lambda e: list(e.path))
+
+        messages = []
+        for err in errors:
+            path = ' -> '.join(str(p) for p in err.absolute_path) or '(root)'
+            messages.append(f"  [{path}] {err.message}")
+
+        return messages
+
     def __init__(self, session):
         """
         初始化服务
@@ -45,7 +96,15 @@ class ProgramService:
         # 读取 YAML
         with open(yaml_path, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
-        
+
+        # 校验 schema
+        errors = ProgramService.validate_yaml(yaml_path)
+        if errors:
+            error_msg = '\n'.join(errors)
+            raise ValueError(
+                f"YAML 文件校验失败：{yaml_path}\n{error_msg}"
+            )
+
         program_data = data['program']
         requirements_data = data.get('requirements', [])
         program_id = program_data['id']
@@ -228,6 +287,7 @@ class ProgramService:
             # COURSE_SET 节点：解析 query，关联课程
             query = node_data.get('query', {})
             course_ids = self._resolve_query(query)
+            course_overrides = query.get('course_overrides', {})
             
             for course_id in course_ids:
                 # 验证课程存在
@@ -237,12 +297,35 @@ class ProgramService:
                     print(f"    ⚠️ 课程不存在: {course_id}")
                     continue
                 
-                node_course = NodeCourse(
-                    node_id=node.id,
-                    course_id=course_id
-                )
-                self.session.add(node_course)
-                stats['node_courses'] += 1
+                # 获取该课程的 overrides
+                overrides = course_overrides.get(course_id, {})
+                topics = overrides.get('topics', [])
+                comment = overrides.get('comment')
+                recommended = overrides.get('recommended', False)
+                
+                if topics:
+                    # 有 topic 限定：每个 topic 一行
+                    for topic in topics:
+                        node_course = NodeCourse(
+                            node_id=node.id,
+                            course_id=course_id,
+                            topic=topic,
+                            comment=comment,
+                            recommended=recommended
+                        )
+                        self.session.add(node_course)
+                        stats['node_courses'] += 1
+                else:
+                    # 无 topic 限定：一行，topic=""
+                    node_course = NodeCourse(
+                        node_id=node.id,
+                        course_id=course_id,
+                        topic="",
+                        comment=comment,
+                        recommended=recommended
+                    )
+                    self.session.add(node_course)
+                    stats['node_courses'] += 1
         
         return node
     
@@ -257,6 +340,7 @@ class ProgramService:
         - max_level: 最高 level
         - included: 额外加入的课程 ID
         - excluded: 排除的课程 ID
+        - course_overrides: {course_id: {topics, comment, recommended}}，由调用方处理，不影响本方法返回值
         
         Args:
             query: query 字典
