@@ -314,6 +314,7 @@ class ProgramService:
                     nc = NodeCourse(
                         node_id=node.id,
                         course_id=course_id,
+                        requirement_id=requirement_id,
                         topic=topic,
                         comment=comment,
                         recommended=recommended
@@ -368,6 +369,7 @@ class ProgramService:
                         nc = NodeCourse(
                             node_id=node.id,
                             course_id=combined_cid,
+                            requirement_id=requirement_id,
                             topic=topic,
                             combined_group_id=cg_id,
                         )

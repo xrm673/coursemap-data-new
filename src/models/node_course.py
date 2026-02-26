@@ -26,6 +26,11 @@ class NodeCourse(Base):
         ForeignKey('courses.id', ondelete='CASCADE'),
         nullable=False
     )
+    requirement_id = Column(
+        String(50),
+        ForeignKey('requirements.id', ondelete='CASCADE'),
+        nullable=False
+    )
     # topic 限定：""表示不限，非空表示只有该 topic 的 enroll group 才满足
     topic = Column(String(255), nullable=False, default="")
     
