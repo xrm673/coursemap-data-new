@@ -8,7 +8,8 @@ import yaml
 import jsonschema
 from jsonschema import validate, ValidationError, Draft7Validator
 from models import (
-    Course, Program, Requirement, RequirementSet, RequirementSetRequirement,
+    Course, Program, ProgramSubject,
+    Requirement, RequirementSet, RequirementSetRequirement,
     RequirementDomain, RequirementDomainMembership,
     RequirementNode, NodeChild, NodeCourse,
     EnrollGroup, CombinedGroup
@@ -186,16 +187,26 @@ class ProgramService:
         self.session.flush()
         print(f"✓ 创建 {stats['requirement_sets']} 个 RequirementSets")
         
-        # 7. 创建 RequirementDomains
+        # 7. 创建 ProgramSubjects
+        relevant_subjects = program_data.get('relevant_subjects', [])
+        for subject_id in relevant_subjects:
+            self.session.add(ProgramSubject(
+                program_id=program_id,
+                subject_id=subject_id
+            ))
+        self.session.flush()
+        print(f"✓ 关联 {len(relevant_subjects)} 个 Subjects")
+
+        # 9. 创建 RequirementDomains
         conflict_domains_data = program_data.get('conflict_domains', [])
         for domain_members in conflict_domains_data:
             self._create_conflict_domain(domain_members, program_id)
             stats['domains'] += 1
-        
+
         self.session.flush()
         print(f"✓ 创建 {stats['domains']} 个 Conflict Domains")
-        
-        # 8. 提交
+
+        # 10. 提交
         try:
             self.session.commit()
             print(f"\n{'='*60}")

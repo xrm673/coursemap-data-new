@@ -17,8 +17,14 @@ from .instructor import Instructor
 from .meeting_instructor import MeetingInstructor
 from .combined_group import CombinedGroup
 
+# 导出所有模型 — 学院相关
+from .college import College
+from .college_program import CollegeProgram
+from .college_subject import CollegeSubject
+
 # 导出所有模型 — 专业要求相关
 from .program import Program
+from .program_subject import ProgramSubject
 from .requirement import Requirement
 from .requirement_set import RequirementSet
 from .requirement_set_requirement import RequirementSetRequirement
@@ -40,8 +46,13 @@ __all__ = [
     'Instructor',
     'MeetingInstructor',
     'CombinedGroup',
+    # 学院相关
+    'College',
+    'CollegeProgram',
+    'CollegeSubject',
     # 专业要求相关
     'Program',
+    'ProgramSubject',
     'Requirement',
     'RequirementSet',
     'RequirementSetRequirement',

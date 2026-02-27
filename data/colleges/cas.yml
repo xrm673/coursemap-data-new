@@ -1,0 +1,9 @@
+college:
+  id: CAS
+  name: "Arts and Sciences"
+
+programs:
+  - ARTH
+
+subjects:
+  - ARTH

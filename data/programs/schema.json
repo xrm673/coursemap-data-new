@@ -60,6 +60,14 @@
             "description": "Course ID, e.g. 'ARTH1100'"
           }
         },
+        "relevant_subjects": {
+          "type": "array",
+          "description": "Subject codes whose courses are most relevant to this program, used to populate the program_subjects relationship table",
+          "items": {
+            "type": "string",
+            "description": "Subject code, e.g. 'ARTH'"
+          }
+        },
         "requirement_sets": {
           "type": "array",
           "description": "Defines which requirements apply to which students. If not specified, all requirements apply to all students.",

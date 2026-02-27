@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "College YAML Schema",
+  "description": "Schema for defining a college and its relationships to programs and subjects",
+  "type": "object",
+  "required": ["college"],
+  "additionalProperties": false,
+  "properties": {
+    "college": {
+      "type": "object",
+      "description": "Top-level metadata for the college",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the college, e.g. 'CAS'",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable college name, e.g. 'Arts and Sciences'",
+          "minLength": 1
+        }
+      }
+    },
+    "programs": {
+      "type": "array",
+      "description": "Program IDs (majors/minors) offered by this college",
+      "items": {
+        "type": "string",
+        "description": "Program ID, e.g. 'ARTH'"
+      }
+    },
+    "subjects": {
+      "type": "array",
+      "description": "Subject codes administered by this college",
+      "items": {
+        "type": "string",
+        "description": "Subject code, e.g. 'ARTH'"
+      }
+    }
+  }
+}

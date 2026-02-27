@@ -43,6 +43,16 @@ class Program(Base):
         back_populates="program",
         cascade="all, delete-orphan"
     )
+    college_programs = relationship(
+        "CollegeProgram",
+        back_populates="program",
+        cascade="all, delete-orphan"
+    )
+    program_subjects = relationship(
+        "ProgramSubject",
+        back_populates="program",
+        cascade="all, delete-orphan"
+    )
     
     def __repr__(self):
         return f"<Program {self.id}: {self.name} ({self.type})>"

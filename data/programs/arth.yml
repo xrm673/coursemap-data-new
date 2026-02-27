@@ -6,6 +6,8 @@ program:
   major_dependent: false
   college_dependent: false
   concentration_dependent: false
+  relevant_subjects: 
+    - ARTH
   onboarding_courses:
     - ARTH1100
     - ARTH2000
