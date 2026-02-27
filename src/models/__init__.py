@@ -17,6 +17,10 @@ from .instructor import Instructor
 from .meeting_instructor import MeetingInstructor
 from .combined_group import CombinedGroup
 
+# 导出所有模型 — 用户相关
+from .user import User
+from .user_program import UserProgram
+
 # 导出所有模型 — 学院相关
 from .college import College
 from .college_program import CollegeProgram
@@ -46,6 +50,9 @@ __all__ = [
     'Instructor',
     'MeetingInstructor',
     'CombinedGroup',
+    # 用户相关
+    'User',
+    'UserProgram',
     # 学院相关
     'College',
     'CollegeProgram',

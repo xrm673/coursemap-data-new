@@ -53,7 +53,11 @@ class Program(Base):
         back_populates="program",
         cascade="all, delete-orphan"
     )
-    
+    user_programs = relationship(
+        "UserProgram",
+        back_populates="program"
+    )
+
     def __repr__(self):
         return f"<Program {self.id}: {self.name} ({self.type})>"
     

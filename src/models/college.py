@@ -24,6 +24,10 @@ class College(Base):
         back_populates="college",
         cascade="all, delete-orphan"
     )
+    users = relationship(
+        "User",
+        back_populates="college"
+    )
 
     def __repr__(self):
         return f"<College {self.id}: {self.name}>"
