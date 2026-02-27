@@ -20,6 +20,8 @@ from .combined_group import CombinedGroup
 # 导出所有模型 — 用户相关
 from .user import User
 from .user_program import UserProgram
+from .user_course import UserCourse
+from .user_course_section import UserCourseSection
 
 # 导出所有模型 — 学院相关
 from .college import College
@@ -53,6 +55,8 @@ __all__ = [
     # 用户相关
     'User',
     'UserProgram',
+    'UserCourse',
+    'UserCourseSection',
     # 学院相关
     'College',
     'CollegeProgram',

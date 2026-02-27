@@ -39,6 +39,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"  # 删除用户时级联删除其专业记录
     )
+    user_courses = relationship(
+        "UserCourse",
+        back_populates="user",
+        cascade="all, delete-orphan"  # 删除用户时级联删除其课程记录
+    )
 
     def __repr__(self):
         return f"<User {self.id}: {self.net_id}>"

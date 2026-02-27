@@ -52,6 +52,12 @@ class ClassSection(Base):
         back_populates="class_section",
         cascade="all, delete-orphan"
     )
+
+    # 关系：一对多 → UserCourseSection
+    user_course_sections = relationship(
+        "UserCourseSection",
+        back_populates="class_section"
+    )
     
     # 表级约束
     __table_args__ = (

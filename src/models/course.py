@@ -49,6 +49,12 @@ class Course(Base):
         back_populates="course",
         cascade="all, delete-orphan"  # EnrollGroup 只属于一个 Course，可以级联删除
     )
+
+    # 关系：一对多 → UserCourse
+    user_courses = relationship(
+        "UserCourse",
+        back_populates="course"
+    )
     
     def __init__(self, data, semester):
         """
