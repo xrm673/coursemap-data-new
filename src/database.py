@@ -82,6 +82,51 @@ class Database:
             print(f"✗ 创建数据表失败: {e}")
             return False
     
+    def reset_program_tables(self):
+        """
+        删除并重建专业要求相关的数据表。
+
+        删除范围（按依赖顺序）：
+          node_courses, node_children, requirement_nodes,
+          requirement_domain_memberships, requirement_domains,
+          requirement_set_requirements, requirement_sets,
+          requirements, user_concentrations, program_concentrations,
+          program_subjects
+
+        不影响：programs, users, user_program, courses 等表。
+        注意：user_concentrations 中的用户数据会被清空。
+        """
+        TABLE_NAMES = [
+            'node_courses',
+            'node_children',
+            'requirement_nodes',
+            'requirement_domain_memberships',
+            'requirement_domains',
+            'requirement_set_requirements',
+            'requirement_sets',
+            'requirements',
+            'user_concentration',
+            'program_concentrations',
+            'program_subjects',
+        ]
+        try:
+            print("正在删除专业要求相关表...")
+            # 按顺序逐表删除，忽略不存在的表
+            with self.engine.connect() as conn:
+                conn.execute(__import__('sqlalchemy').text("SET FOREIGN_KEY_CHECKS = 0"))
+                for table_name in TABLE_NAMES:
+                    conn.execute(__import__('sqlalchemy').text(f"DROP TABLE IF EXISTS `{table_name}`"))
+                    print(f"  已删除: {table_name}")
+                conn.execute(__import__('sqlalchemy').text("SET FOREIGN_KEY_CHECKS = 1"))
+                conn.commit()
+            print("正在重建专业要求相关表...")
+            Base.metadata.create_all(self.engine)
+            print("✓ 专业要求相关表重建成功！")
+            return True
+        except Exception as e:
+            print(f"✗ 重建专业要求相关表失败: {e}")
+            return False
+
     def reset_tables(self):
         """删除并重建所有数据表（危险操作！会清空所有数据）"""
         try:

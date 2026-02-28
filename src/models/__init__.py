@@ -22,6 +22,7 @@ from .user import User
 from .user_program import UserProgram
 from .user_course import UserCourse
 from .user_course_section import UserCourseSection
+from .user_concentration import UserConcentration
 
 # 导出所有模型 — 学院相关
 from .college import College
@@ -31,6 +32,7 @@ from .college_subject import CollegeSubject
 # 导出所有模型 — 专业要求相关
 from .program import Program
 from .program_subject import ProgramSubject
+from .program_concentration import ProgramConcentration
 from .requirement import Requirement
 from .requirement_set import RequirementSet
 from .requirement_set_requirement import RequirementSetRequirement
@@ -57,6 +59,7 @@ __all__ = [
     'UserProgram',
     'UserCourse',
     'UserCourseSection',
+    'UserConcentration',
     # 学院相关
     'College',
     'CollegeProgram',
@@ -64,6 +67,7 @@ __all__ = [
     # 专业要求相关
     'Program',
     'ProgramSubject',
+    'ProgramConcentration',
     'Requirement',
     'RequirementSet',
     'RequirementSetRequirement',

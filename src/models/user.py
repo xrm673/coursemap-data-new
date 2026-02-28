@@ -16,7 +16,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
 
     # 账号信息
-    net_id = Column(String(15), unique=True, nullable=False)
+    netid = Column(String(15), unique=True, nullable=False)
     email = Column(String(255), unique=True, nullable=False)
     password = Column(String(255), nullable=False)
 
@@ -44,9 +44,14 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"  # 删除用户时级联删除其课程记录
     )
+    user_concentrations = relationship(
+        "UserConcentration",
+        back_populates="user",
+        cascade="all, delete-orphan"  # 删除用户时级联删除其 concentration 记录
+    )
 
     def __repr__(self):
-        return f"<User {self.id}: {self.net_id}>"
+        return f"<User {self.id}: {self.netid}>"
 
     def __str__(self):
-        return f"{self.net_id} - {self.first_name} {self.last_name}"
+        return f"{self.netid} - {self.first_name} {self.last_name}"

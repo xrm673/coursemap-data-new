@@ -8,7 +8,7 @@ import yaml
 import jsonschema
 from jsonschema import validate, ValidationError, Draft7Validator
 from models import (
-    Course, Program, ProgramSubject,
+    Course, Program, ProgramSubject, ProgramConcentration,
     Requirement, RequirementSet, RequirementSetRequirement,
     RequirementDomain, RequirementDomainMembership,
     RequirementNode, NodeChild, NodeCourse,
@@ -125,6 +125,7 @@ class ProgramService:
             'combined_courses': 0,
             'requirement_sets': 0,
             'domains': 0,
+            'concentrations': 0,
             'courses_not_found': []
         }
         
@@ -148,12 +149,27 @@ class ProgramService:
         
         # 3. 创建 Requirements（root_node_id 暂为 NULL）
         for req_data in requirements_data:
+            # 按 concentration 名称查找 concentration_id（可选字段）
+            concentration_id = None
+            concentration_name = req_data.get('concentration')
+            if concentration_name:
+                pc = (
+                    self.session.query(ProgramConcentration)
+                    .filter_by(program_id=program_id, concentration_name=concentration_name)
+                    .first()
+                )
+                if pc:
+                    concentration_id = pc.id
+                else:
+                    print(f"  ⚠️ Concentration 未找到: '{concentration_name}'（requirement {req_data['id']}）")
+
             requirement = Requirement(
                 id=req_data['id'],
                 program_id=program_id,
                 name=req_data['name'],
                 ui_type=req_data['ui_type'],
-                description=req_data.get('description')
+                description=req_data.get('description'),
+                concentration_id=concentration_id
             )
             self.session.add(requirement)
             stats['requirements'] += 1
@@ -197,6 +213,18 @@ class ProgramService:
         self.session.flush()
         print(f"✓ 关联 {len(relevant_subjects)} 个 Subjects")
 
+        # 8. 创建 ProgramConcentrations
+        concentrations = program_data.get('concentrations', [])
+        for name in concentrations:
+            self.session.add(ProgramConcentration(
+                program_id=program_id,
+                concentration_name=name
+            ))
+            stats['concentrations'] += 1
+        self.session.flush()
+        if concentrations:
+            print(f"✓ 创建 {len(concentrations)} 个 Concentrations")
+
         # 9. 创建 RequirementDomains
         conflict_domains_data = program_data.get('conflict_domains', [])
         for domain_members in conflict_domains_data:
@@ -217,6 +245,8 @@ class ProgramService:
             print(f"  Node-Course 关联: {stats['node_courses']} (其中 combined: {stats['combined_courses']})")
             print(f"  RequirementSets: {stats['requirement_sets']}")
             print(f"  Conflict Domains: {stats['domains']}")
+            if stats['concentrations']:
+                print(f"  Concentrations: {stats['concentrations']}")
             if stats['courses_not_found']:
                 print(f"  ⚠️ 未找到的课程: {stats['courses_not_found']}")
             print(f"{'='*60}\n")

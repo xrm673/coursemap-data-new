@@ -73,6 +73,15 @@
           "description": "Defines which requirements apply to which students. If not specified, all requirements apply to all students.",
           "items": { "$ref": "#/definitions/requirement_set" }
         },
+        "concentrations": {
+          "type": "array",
+          "description": "List of concentration names available for this program, e.g. ['Theory & Criticism', 'Studio Practice']",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
         "conflict_domains": {
           "type": "array",
           "description": "Groups of requirements that cannot be satisfied by the same course. A course used to satisfy one requirement in a domain cannot satisfy any other requirement in that same domain.",
@@ -154,6 +163,11 @@
           "items": { "type": "string" },
           "minItems": 1
         },
+        "concentration": {
+          "type": "string",
+          "description": "If specified, this requirement only applies to students in this concentration. Must match a name in the program's concentrations list.",
+          "minLength": 1
+        },
         "root_node": {
           "$ref": "#/definitions/node",
           "description": "The root of the requirement's course-selection tree"
@@ -161,26 +175,26 @@
       }
     },
     "node": {
-      "description": "A node in the requirement tree. Must be either a GROUP or a COURSE_SET.",
+      "description": "A node in the requirement tree. Must be either a SELECT or a COURSE_SET.",
       "oneOf": [
-        { "$ref": "#/definitions/group_node" },
+        { "$ref": "#/definitions/select_node" },
         { "$ref": "#/definitions/course_set_node" }
       ]
     },
-    "group_node": {
+    "select_node": {
       "type": "object",
-      "description": "An intermediate node that groups child nodes. The student must satisfy `pick` of its children.",
+      "description": "An intermediate node that selects a subset of child nodes. The student must satisfy `pick` of its children.",
       "required": ["type", "pick", "children"],
       "additionalProperties": false,
       "properties": {
         "type": {
           "type": "string",
-          "const": "GROUP",
-          "description": "Must be 'GROUP'"
+          "const": "SELECT",
+          "description": "Must be 'SELECT'"
         },
         "title": {
           "type": "string",
-          "description": "Optional display label for this group"
+          "description": "Optional display label for this select"
         },
         "pick": {
           "type": "integer",
@@ -189,7 +203,7 @@
         },
         "children": {
           "type": "array",
-          "description": "Child nodes (each can be a GROUP or a COURSE_SET)",
+          "description": "Child nodes (each can be a SELECT or a COURSE_SET)",
           "items": { "$ref": "#/definitions/node" },
           "minItems": 1
         }

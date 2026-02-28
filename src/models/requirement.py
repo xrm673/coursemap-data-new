@@ -7,6 +7,7 @@ from sqlalchemy.orm import relationship
 from . import Base
 
 
+
 class Requirement(Base):
     """专业要求表"""
     __tablename__ = 'requirements'
@@ -22,6 +23,14 @@ class Requirement(Base):
     ui_type = Column(String(20), nullable=False)  # "GROUP" / "LIST"
     description = Column(JSON, nullable=True)  # ["Take at least...", ...]
     
+    # 外键：所属 concentration（可选，NULL 表示适用所有学生）
+    concentration_id = Column(
+        Integer,
+        ForeignKey('program_concentrations.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True
+    )
+
     # 树的根节点（circular FK with nodes）
     root_node_id = Column(
         String(50),
@@ -31,6 +40,7 @@ class Requirement(Base):
     
     # 关系
     program = relationship("Program", back_populates="requirements")
+    concentration = relationship("ProgramConcentration", back_populates="requirements")
     
     root_node = relationship(
         "RequirementNode",

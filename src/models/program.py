@@ -53,6 +53,11 @@ class Program(Base):
         back_populates="program",
         cascade="all, delete-orphan"
     )
+    program_concentrations = relationship(
+        "ProgramConcentration",
+        back_populates="program",
+        cascade="all, delete-orphan"
+    )
     user_programs = relationship(
         "UserProgram",
         back_populates="program"

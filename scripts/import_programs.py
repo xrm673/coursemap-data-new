@@ -6,6 +6,7 @@
 使用方法：
   python scripts/import_programs.py --programs ARTH CS
   python scripts/import_programs.py --all
+  python scripts/import_programs.py --all --reset        # 先重置相关表再导入
   python scripts/import_programs.py --validate           # 校验所有 YAML 文件
   python scripts/import_programs.py --validate ARTH CS   # 校验指定文件
 """
@@ -66,6 +67,7 @@ def parse_args():
   python scripts/import_programs.py --programs ARTH          # 导入 ARTH
   python scripts/import_programs.py --programs ARTH CS MATH  # 导入多个专业
   python scripts/import_programs.py --all                    # 导入所有 YAML 文件
+  python scripts/import_programs.py --all --reset            # 先重置相关表再导入（用于 schema 变更）
   python scripts/import_programs.py --validate               # 校验所有 YAML 文件（不需要数据库）
   python scripts/import_programs.py --validate ARTH          # 校验指定文件
         """
@@ -88,6 +90,12 @@ def parse_args():
         nargs='*',
         metavar='ID',
         help='仅校验 YAML 文件格式，不写入数据库。不加 ID 则校验所有文件。'
+    )
+
+    parser.add_argument(
+        '--reset',
+        action='store_true',
+        help='导入前先删除并重建专业要求相关表（用于 schema 变更后的重置）'
     )
 
     return parser.parse_args()
@@ -167,10 +175,18 @@ def main():
         print("\n数据库连接失败，请检查 .env 配置")
         return
     
-    # 确保表存在
-    if not db.create_tables():
-        print("\n数据表创建失败，程序终止")
-        return
+    # --reset 模式：删除并重建专业要求相关表
+    if args.reset:
+        print("⚠️  Reset 模式：将删除并重建专业要求相关表")
+        print("-" * 60)
+        if not db.reset_program_tables():
+            print("\n表重建失败，程序终止")
+            return
+    else:
+        # 确保表存在（不影响现有数据）
+        if not db.create_tables():
+            print("\n数据表创建失败，程序终止")
+            return
     print()
     
     # 3. 导入每个专业

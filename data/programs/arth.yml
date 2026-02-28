@@ -31,7 +31,7 @@ requirements:
       - "If students have not taken ARTH 1100 by the spring of sophomore year, they must complete a 4000-level tutorial course and receive a grade of B or higher in order to qualify for the major."
       - "A grade of B- or higher is required of all other courses to receive credit toward the major."
     root_node:
-      type: GROUP
+      type: SELECT
       pick: 3
       children:
         - type: COURSE_SET
