@@ -43,6 +43,11 @@ class UserCourse(Base):
         back_populates="user_course",
         cascade="all, delete-orphan"  # 删除 user_course 时级联删除关联的 section 记录
     )
+    user_course_requirements = relationship(
+        "UserCourseRequirement",
+        back_populates="user_course",
+        cascade="all, delete-orphan"  # 删除 user_course 时级联删除计入记录
+    )
 
     # 唯一约束（仅覆盖 semester / topic 均非 NULL 的情况，NULL 情况需应用层保证）
     __table_args__ = (

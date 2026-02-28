@@ -104,6 +104,7 @@ class Database:
             'requirement_domains',
             'requirement_set_requirements',
             'requirement_sets',
+            'user_course_requirements',
             'requirements',
             'user_concentration',
             'program_concentrations',

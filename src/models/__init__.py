@@ -23,6 +23,7 @@ from .user_program import UserProgram
 from .user_course import UserCourse
 from .user_course_section import UserCourseSection
 from .user_concentration import UserConcentration
+from .user_course_requirement import UserCourseRequirement
 
 # 导出所有模型 — 学院相关
 from .college import College
@@ -60,6 +61,7 @@ __all__ = [
     'UserCourse',
     'UserCourseSection',
     'UserConcentration',
+    'UserCourseRequirement',
     # 学院相关
     'College',
     'CollegeProgram',

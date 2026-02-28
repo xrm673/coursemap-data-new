@@ -66,6 +66,11 @@ class Requirement(Base):
         back_populates="requirement",
         passive_deletes=True
     )
+    user_course_requirements = relationship(
+        "UserCourseRequirement",
+        back_populates="requirement",
+        passive_deletes=True  # 由 DB 级别 ondelete='CASCADE' 处理
+    )
     
     def __repr__(self):
         return f"<Requirement {self.id}: {self.name}>"
