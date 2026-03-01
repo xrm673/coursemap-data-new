@@ -16,7 +16,7 @@ class Requirement(Base):
     id = Column(String(50), primary_key=True)  # "arth1"
     
     # 外键：所属专业
-    program_id = Column(String(20), ForeignKey('programs.id', ondelete='CASCADE'), nullable=False, index=True)
+    program_id = Column(String(20), ForeignKey('programs.id', ondelete='CASCADE', name='fk_requirements_program'), nullable=False, index=True)
     
     # 基本信息
     name = Column(String(255), nullable=False)  # "Core"
@@ -26,7 +26,7 @@ class Requirement(Base):
     # 外键：所属 concentration（可选，NULL 表示适用所有学生）
     concentration_id = Column(
         Integer,
-        ForeignKey('program_concentrations.id', ondelete='SET NULL'),
+        ForeignKey('program_concentrations.id', ondelete='SET NULL', name='fk_requirements_concentration'),
         nullable=True,
         index=True
     )
@@ -34,7 +34,7 @@ class Requirement(Base):
     # 树的根节点（circular FK with nodes）
     root_node_id = Column(
         String(50),
-        ForeignKey('requirement_nodes.id', use_alter=True, ondelete='SET NULL'),
+        ForeignKey('requirement_nodes.id', use_alter=True, ondelete='SET NULL', name='fk_requirements_root_node'),
         nullable=True
     )
     
