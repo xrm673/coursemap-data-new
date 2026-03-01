@@ -60,7 +60,8 @@ class Program(Base):
     )
     user_programs = relationship(
         "UserProgram",
-        back_populates="program"
+        back_populates="program",
+        passive_deletes=True  # 由 DB 级别 ondelete='RESTRICT' 处理，不尝试 NULL 出主键
     )
 
     def __repr__(self):

@@ -132,20 +132,31 @@ class ProgramService:
         # 1. 删除现有数据
         self._delete_program(program_id)
         
-        # 2. 创建 Program
-        program = Program(
-            id=program_id,
-            name=program_data['name'],
-            type=program_data['type'],
-            year_dependent=program_data.get('year_dependent', False),
-            major_dependent=program_data.get('major_dependent', False),
-            college_dependent=program_data.get('college_dependent', False),
-            concentration_dependent=program_data.get('concentration_dependent', False),
-            onboarding_courses=program_data.get('onboarding_courses')
-        )
-        self.session.add(program)
+        # 2. 创建或更新 Program（不删行，避免 user_program RESTRICT 报错）
+        program = self.session.query(Program).get(program_id)
+        if program:
+            program.name = program_data['name']
+            program.type = program_data['type']
+            program.year_dependent = program_data.get('year_dependent', False)
+            program.major_dependent = program_data.get('major_dependent', False)
+            program.college_dependent = program_data.get('college_dependent', False)
+            program.concentration_dependent = program_data.get('concentration_dependent', False)
+            program.onboarding_courses = program_data.get('onboarding_courses')
+            print(f"✓ 更新 Program: {program}")
+        else:
+            program = Program(
+                id=program_id,
+                name=program_data['name'],
+                type=program_data['type'],
+                year_dependent=program_data.get('year_dependent', False),
+                major_dependent=program_data.get('major_dependent', False),
+                college_dependent=program_data.get('college_dependent', False),
+                concentration_dependent=program_data.get('concentration_dependent', False),
+                onboarding_courses=program_data.get('onboarding_courses')
+            )
+            self.session.add(program)
+            print(f"✓ 创建 Program: {program}")
         self.session.flush()
-        print(f"✓ 创建 Program: {program}")
         
         # 3. 创建 Requirements（root_node_id 暂为 NULL）
         for req_data in requirements_data:
@@ -260,7 +271,10 @@ class ProgramService:
     
     def _delete_program(self, program_id):
         """
-        删除某个专业的所有数据（用于 clean re-import）
+        清除某个专业的所有 requirement 相关子数据（用于 clean re-import）
+        
+        注意：不删除 Program 行本身，避免触发 user_program 的 RESTRICT FK。
+        Program 行的字段更新由 import_from_yaml 的 step 2 负责。
         
         Args:
             program_id: 专业 ID
@@ -270,15 +284,28 @@ class ProgramService:
             print(f"  专业 {program_id} 不存在，跳过删除")
             return
         
-        # 先清除 circular FK（root_node_id）
+        # 先清除 circular FK（root_node_id），否则无法删除 RequirementNode
         for req in program.requirements:
             req.root_node_id = None
         self.session.flush()
         
-        # 删除 Program（cascade 会删除所有关联数据）
-        self.session.delete(program)
+        # 清除 requirements（cascade="all, delete-orphan"）
+        # → SQLAlchemy 级联删除 RequirementNode → NodeChild / NodeCourse
+        # → DB 级联删除 requirement_set_requirements / requirement_domain_memberships
+        program.requirements.clear()
         self.session.flush()
-        print(f"  已删除旧数据: {program_id}")
+        
+        # 清除 requirement_sets（items 已被上面的 DB cascade 清理）
+        program.requirement_sets.clear()
+        # 清除 requirement_domains（memberships 已被上面的 DB cascade 清理）
+        program.requirement_domains.clear()
+        # 清除 program_concentrations（requirements 已清理，不再有 FK 指向它）
+        program.program_concentrations.clear()
+        # 清除 program_subjects
+        program.program_subjects.clear()
+        self.session.flush()
+        
+        print(f"  已清除旧 requirement 数据: {program_id}")
     
     def _create_node_tree(self, requirement_id, node_data, counter, stats):
         """
@@ -312,8 +339,8 @@ class ProgramService:
         self.session.flush()
         stats['nodes'] += 1
         
-        if node_data['type'] == 'GROUP':
-            # GROUP 节点：递归创建子节点
+        if node_data['type'] == 'SELECT':
+            # SELECT 节点：递归创建子节点
             children_data = node_data.get('children', [])
             for idx, child_data in enumerate(children_data):
                 child_node = self._create_node_tree(

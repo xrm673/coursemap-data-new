@@ -1,7 +1,7 @@
 """
 RequirementNode 数据模型
 表示 requirement 树中的节点
-节点分两种类型：GROUP（有子节点）和 COURSE_SET（有课程列表）
+节点分两种类型：SELECT（有子节点）和 COURSE_SET（有课程列表）
 """
 from sqlalchemy import Column, String, Integer, ForeignKey
 from sqlalchemy.orm import relationship
@@ -24,7 +24,7 @@ class RequirementNode(Base):
     )
     
     # 节点信息
-    type = Column(String(20), nullable=False)  # "GROUP" / "COURSE_SET"
+    type = Column(String(20), nullable=False)  # "SELECT" / "COURSE_SET"
     title = Column(String(255), nullable=True)
     pick_count = Column(Integer, nullable=False)  # 需要选几门/几组
     
@@ -35,7 +35,7 @@ class RequirementNode(Base):
         foreign_keys=[requirement_id]
     )
     
-    # GROUP 节点的子节点关系
+    # SELECT 节点的子节点关系
     children = relationship(
         "NodeChild",
         back_populates="parent_node",
