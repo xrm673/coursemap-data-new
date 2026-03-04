@@ -103,14 +103,19 @@ class CollegeService:
             'subjects': 0,
         }
 
-        # 1. 删除现有数据
+        # 1. 清除现有子数据
         self._delete_college(college_id)
 
-        # 2. 创建 College
-        college = College(id=college_id, name=college_data['name'])
-        self.session.add(college)
+        # 2. 创建或更新 College（不删行，避免 users.college_id RESTRICT 报错）
+        college = self.session.query(College).get(college_id)
+        if college:
+            college.name = college_data['name']
+            print(f"✓ 更新 College: {college}")
+        else:
+            college = College(id=college_id, name=college_data['name'])
+            self.session.add(college)
+            print(f"✓ 创建 College: {college}")
         self.session.flush()
-        print(f"✓ 创建 College: {college}")
 
         # 3. 创建 college_programs
         for program_id in programs:
@@ -151,12 +156,17 @@ class CollegeService:
 
     def _delete_college(self, college_id):
         """
-        删除某个学院的所有数据（用于 clean re-import）
+        清除某个学院的所有子数据（用于 clean re-import）
+        
+        注意：不删除 College 行本身，避免触发 users.college_id 的 RESTRICT FK。
+        College 行的字段更新由 import_from_yaml 的 step 2 负责。
         """
         college = self.session.query(College).get(college_id)
         if not college:
             print(f"  学院 {college_id} 不存在，跳过删除")
             return
-        self.session.delete(college)
+        # 清除 college_programs 和 college_subjects（cascade="all, delete-orphan"）
+        college.college_programs.clear()
+        college.college_subjects.clear()
         self.session.flush()
-        print(f"  已删除旧数据: {college_id}")
+        print(f"  已清除旧子数据: {college_id}")

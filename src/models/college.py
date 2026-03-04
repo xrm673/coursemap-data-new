@@ -26,7 +26,8 @@ class College(Base):
     )
     users = relationship(
         "User",
-        back_populates="college"
+        back_populates="college",
+        passive_deletes=True  # 由 DB 级别 ondelete='RESTRICT' 处理
     )
 
     def __repr__(self):
