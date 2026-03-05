@@ -3,7 +3,7 @@ RequirementNode 数据模型
 表示 requirement 树中的节点
 节点分两种类型：SELECT（有子节点）和 COURSE_SET（有课程列表）
 """
-from sqlalchemy import Column, String, Integer, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from . import Base
 
@@ -26,7 +26,7 @@ class RequirementNode(Base):
     # 节点信息
     type = Column(String(20), nullable=False)  # "SELECT" / "COURSE_SET"
     title = Column(String(255), nullable=True)
-    pick_count = Column(Integer, nullable=False)  # 需要选几门/几组
+    rule = Column(JSON, nullable=False)  # 完成规则，如 {"required_children_count": 3} 或 {"required_units_count": 1, "units_type": "COURSE"}
     
     # 关系
     requirement = relationship(
@@ -51,8 +51,8 @@ class RequirementNode(Base):
     )
     
     def __repr__(self):
-        return f"<RequirementNode {self.id}: {self.type} pick={self.pick_count}>"
+        return f"<RequirementNode {self.id}: {self.type} rule={self.rule}>"
     
     def __str__(self):
         title_str = f" '{self.title}'" if self.title else ""
-        return f"{self.type}{title_str} (pick {self.pick_count})"
+        return f"{self.type}{title_str} (rule={self.rule})"

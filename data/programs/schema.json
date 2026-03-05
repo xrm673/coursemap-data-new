@@ -183,8 +183,8 @@
     },
     "select_node": {
       "type": "object",
-      "description": "An intermediate node that selects a subset of child nodes. The student must satisfy `pick` of its children.",
-      "required": ["type", "pick", "children"],
+      "description": "An intermediate node that selects a subset of child nodes.",
+      "required": ["type", "rule", "children"],
       "additionalProperties": false,
       "properties": {
         "type": {
@@ -196,11 +196,7 @@
           "type": "string",
           "description": "Optional display label for this select"
         },
-        "pick": {
-          "type": "integer",
-          "description": "Number of children the student must satisfy",
-          "minimum": 1
-        },
+        "rule": { "$ref": "#/definitions/select_rule" },
         "children": {
           "type": "array",
           "description": "Child nodes (each can be a SELECT or a COURSE_SET)",
@@ -211,8 +207,8 @@
     },
     "course_set_node": {
       "type": "object",
-      "description": "A leaf node that contains a set of courses. The student must take `pick` courses from this set.",
-      "required": ["type", "pick", "query"],
+      "description": "A leaf node that contains a set of courses.",
+      "required": ["type", "rule", "query"],
       "additionalProperties": false,
       "properties": {
         "type": {
@@ -224,14 +220,54 @@
           "type": "string",
           "description": "Optional display label for this course set"
         },
-        "pick": {
-          "type": "integer",
-          "description": "Number of courses the student must take from this set",
-          "minimum": 1
-        },
+        "rule": { "$ref": "#/definitions/course_set_rule" },
         "query": {
           "$ref": "#/definitions/query",
           "description": "Defines which courses belong to this set"
+        }
+      }
+    },
+    "select_rule": {
+      "type": "object",
+      "description": "Completion rule for a SELECT node. Must specify required_children_count, required_units_count + units_type, or both.",
+      "additionalProperties": false,
+      "properties": {
+        "required_children_count": {
+          "type": "integer",
+          "description": "Number of child nodes the student must satisfy",
+          "minimum": 1
+        },
+        "required_units_count": {
+          "type": "integer",
+          "description": "Number of units (courses or credits) the student must accumulate across satisfied children",
+          "minimum": 1
+        },
+        "units_type": {
+          "type": "string",
+          "description": "How units are counted: COURSE (number of courses) or CREDIT (number of credit hours)",
+          "enum": ["COURSE", "CREDIT"]
+        }
+      },
+      "anyOf": [
+        { "required": ["required_children_count"] },
+        { "required": ["required_units_count", "units_type"] }
+      ]
+    },
+    "course_set_rule": {
+      "type": "object",
+      "description": "Completion rule for a COURSE_SET node.",
+      "required": ["required_units_count", "units_type"],
+      "additionalProperties": false,
+      "properties": {
+        "required_units_count": {
+          "type": "integer",
+          "description": "Number of units (courses or credits) the student must take from this set",
+          "minimum": 1
+        },
+        "units_type": {
+          "type": "string",
+          "description": "How units are counted: COURSE (number of courses) or CREDIT (number of credit hours)",
+          "enum": ["COURSE", "CREDIT"]
         }
       }
     },

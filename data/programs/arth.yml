@@ -32,21 +32,28 @@ requirements:
       - "A grade of B- or higher is required of all other courses to receive credit toward the major."
     root_node:
       type: SELECT
-      pick: 3
+      rule:
+        required_children_count: 3
       children:
         - type: COURSE_SET
           title: "Art History"
-          pick: 1
+          rule:
+            required_units_count: 1
+            units_type: COURSE
           query:
             included: [ARTH1100]
         - type: COURSE_SET
           title: "Visual Studies"
-          pick: 1
+          rule:
+            required_units_count: 1
+            units_type: COURSE
           query:
             included: [ARTH2000]
         - type: COURSE_SET
           title: "Methods Seminar"
-          pick: 1
+          rule:
+            required_units_count: 1
+            units_type: COURSE
           query:
             included: [ARTH4101]
 
@@ -57,7 +64,9 @@ requirements:
       - "Take at least one ARTH course at the 2000-level."
     root_node:
       type: COURSE_SET
-      pick: 1
+      rule:
+        required_units_count: 1
+        units_type: COURSE
       query:
         subject: ARTH
         level: 2
@@ -70,7 +79,9 @@ requirements:
       - "Take at least one ARTH course at the 3000-level."
     root_node:
       type: COURSE_SET
-      pick: 1
+      rule:
+        required_units_count: 1
+        units_type: COURSE
       query:
         subject: ARTH
         level: 3
@@ -82,7 +93,9 @@ requirements:
       - "Take at least two ARTH courses at the 4000-level."
     root_node:
       type: COURSE_SET
-      pick: 2
+      rule:
+        required_units_count: 2
+        units_type: COURSE
       query:
         subject: ARTH
         level: 4
@@ -95,7 +108,9 @@ requirements:
       - "Take three additional ARTH electives at the 3000-level or higher."
     root_node:
       type: COURSE_SET
-      pick: 3
+      rule:
+        required_units_count: 3
+        units_type: COURSE
       query:
         subject: ARTH
         min_level: 3

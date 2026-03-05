@@ -333,7 +333,7 @@ class ProgramService:
             requirement_id=requirement_id,
             type=node_data['type'],
             title=node_data.get('title'),
-            pick_count=node_data['pick']
+            rule=node_data['rule']
         )
         self.session.add(node)
         self.session.flush()
